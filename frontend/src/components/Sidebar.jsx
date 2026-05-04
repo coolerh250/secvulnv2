@@ -4,7 +4,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { Icons } from './Icons';
 import { t } from '../styles/tokens';
 
-export function Sidebar({ page, setPage }) {
+export function Sidebar({ currentPage: page, onNavigate: setPage }) {
   const { lang } = useLang();
   const { currentUser, logout, can, ROLES } = useAuth();
 
