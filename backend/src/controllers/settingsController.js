@@ -1,0 +1,47 @@
+const pool = require('../db');
+
+async function get(req, res, next) {
+  try {
+    const { rows } = await pool.query('SELECT * FROM settings WHERE id = 1');
+    res.json(rows[0] || {});
+  } catch (err) {
+    next(err);
+  }
+}
+
+async function update(req, res, next) {
+  try {
+    const {
+      ai_provider, ai_model, ai_api_key, ai_auth_method,
+      notif_email, notif_web, notif_threshold, notif_email_addr,
+      interface_language, data_sources,
+    } = req.body;
+
+    const { rows } = await pool.query(
+      `UPDATE settings SET
+        ai_provider       = COALESCE($1,  ai_provider),
+        ai_model          = COALESCE($2,  ai_model),
+        ai_api_key        = COALESCE($3,  ai_api_key),
+        ai_auth_method    = COALESCE($4,  ai_auth_method),
+        notif_email       = COALESCE($5,  notif_email),
+        notif_web         = COALESCE($6,  notif_web),
+        notif_threshold   = COALESCE($7,  notif_threshold),
+        notif_email_addr  = COALESCE($8,  notif_email_addr),
+        interface_language = COALESCE($9, interface_language),
+        data_sources      = COALESCE($10, data_sources),
+        updated_at        = NOW()
+       WHERE id = 1 RETURNING *`,
+      [
+        ai_provider, ai_model, ai_api_key, ai_auth_method,
+        notif_email ?? null, notif_web ?? null, notif_threshold, notif_email_addr,
+        interface_language,
+        data_sources ? JSON.stringify(data_sources) : null,
+      ]
+    );
+    res.json(rows[0]);
+  } catch (err) {
+    next(err);
+  }
+}
+
+module.exports = { get, update };

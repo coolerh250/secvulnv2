@@ -1,0 +1,150 @@
+export const TOKENS = {
+  bg:           '#0a0e1a',
+  bgCard:       '#131829',
+  bgCardHover:  '#1a2038',
+  bgInput:      '#0d1220',
+  border:       '#1e2540',
+  borderFocus:  '#00d4aa',
+  primary:      '#00d4aa',
+  primaryDim:   'rgba(0,212,170,0.15)',
+  warning:      '#f0a030',
+  warningDim:   'rgba(240,160,48,0.12)',
+  danger:       '#f04040',
+  dangerDim:    'rgba(240,64,64,0.12)',
+  info:         '#4090f0',
+  infoDim:      'rgba(64,144,240,0.12)',
+  medium:       '#c0a020',
+  mediumDim:    'rgba(192,160,32,0.12)',
+  low:          '#50b080',
+  lowDim:       'rgba(80,176,128,0.12)',
+  text:         '#e0e4f0',
+  textSecondary:'#7880a0',
+  textMuted:    '#4a5070',
+  font:         "'IBM Plex Sans', system-ui, sans-serif",
+  mono:         "'IBM Plex Mono', 'SF Mono', monospace",
+  radius:       '8px',
+  radiusSm:     '6px',
+  radiusLg:     '12px',
+  shadow:       '0 2px 12px rgba(0,0,0,0.3)',
+};
+
+export const SEVERITY_MAP = {
+  CRITICAL: { color: TOKENS.danger,   bg: TOKENS.dangerDim,   label: '嚴重', labelEn: 'Critical', icon: '●' },
+  HIGH:     { color: TOKENS.warning,  bg: TOKENS.warningDim,  label: '高',   labelEn: 'High',     icon: '●' },
+  MEDIUM:   { color: TOKENS.medium,   bg: TOKENS.mediumDim,   label: '中',   labelEn: 'Medium',   icon: '●' },
+  LOW:      { color: TOKENS.low,      bg: TOKENS.lowDim,      label: '低',   labelEn: 'Low',      icon: '●' },
+};
+
+export const VULN_STATUS = {
+  pending:  { color: TOKENS.textSecondary, bg: 'rgba(120,128,160,0.12)', label: '待處理',  labelEn: 'Pending',       icon: '○' },
+  fixed:    { color: TOKENS.low,           bg: TOKENS.lowDim,            label: '已修復',  labelEn: 'Fixed',         icon: '✓' },
+  accepted: { color: '#b080e0',            bg: 'rgba(176,128,224,0.12)', label: '風險接受',labelEn: 'Risk Accepted',  icon: '◆' },
+  deferred: { color: TOKENS.info,          bg: TOKENS.infoDim,           label: '暫不處理',labelEn: 'Deferred',      icon: '◇' },
+};
+
+export const ACCEPT_REASONS = {
+  zh: [
+    { value: 'internal_only',  label: '僅內網存取，風險可控' },
+    { value: 'compensating',   label: '已有補償控制措施' },
+    { value: 'low_impact',     label: '實際影響範圍有限' },
+    { value: 'vendor_pending', label: '等待廠商修補程式' },
+    { value: 'scheduled',      label: '已排入維護計畫' },
+    { value: 'other',          label: '其他' },
+  ],
+  en: [
+    { value: 'internal_only',  label: 'Internal access only, risk manageable' },
+    { value: 'compensating',   label: 'Compensating controls in place' },
+    { value: 'low_impact',     label: 'Limited actual impact scope' },
+    { value: 'vendor_pending', label: 'Awaiting vendor patch' },
+    { value: 'scheduled',      label: 'Scheduled in maintenance plan' },
+    { value: 'other',          label: 'Other' },
+  ],
+};
+
+export const ROLES = {
+  superadmin: {
+    label: '全域管理者', labelEn: 'Super Admin', color: TOKENS.danger, bg: TOKENS.dangerDim, icon: '★',
+    permissions: {
+      dashboard:  { view: true },
+      search:     { view: true, modify: true },
+      devices:    { view: true, modify: true },
+      users:      { view: true, modify: true, assignRole: ['superadmin','admin','user'] },
+      settings:   { view: true, modify: true },
+      riskAccept: { view: true, modify: true },
+      aiAnalysis: { view: true },
+    },
+  },
+  admin: {
+    label: '一般管理者', labelEn: 'Admin', color: TOKENS.warning, bg: TOKENS.warningDim, icon: '▲',
+    permissions: {
+      dashboard:  { view: true },
+      search:     { view: true, modify: false },
+      devices:    { view: true, modify: true },
+      users:      { view: true, modify: true, assignRole: ['admin','user'] },
+      settings:   { view: false, modify: false },
+      riskAccept: { view: true, modify: false },
+      aiAnalysis: { view: true },
+    },
+  },
+  user: {
+    label: '使用者', labelEn: 'User', color: TOKENS.info, bg: TOKENS.infoDim, icon: '●',
+    permissions: {
+      dashboard:  { view: true },
+      search:     { view: true, modify: false },
+      devices:    { view: true, modify: false },
+      users:      { view: false, modify: false, assignRole: [] },
+      settings:   { view: false, modify: false },
+      riskAccept: { view: true, modify: false },
+      aiAnalysis: { view: false },
+    },
+  },
+};
+
+export const LANG = {
+  zh: {
+    appTitle: 'SecVuln Tracker', appSubtitle: '資訊安全弱點追蹤系統',
+    dashboard: '儀表板', search: '弱點搜尋', devices: '設備管理', settings: '系統設定',
+    totalVulns: '弱點總數', criticalVulns: '嚴重弱點', affectedDevices: '受影響設備', pendingActions: '待處理項目',
+    recentVulns: '近期弱點', vulnTrend: '弱點趨勢 (近6個月)', severityDist: '嚴重程度分佈', vendorDist: '廠商分佈',
+    searchTitle: '弱點查詢', vendor: '廠商', product: '產品型號', firmware: '韌體版本', dateRange: '日期範圍',
+    severity: '嚴重程度', searchBtn: '搜尋', resetBtn: '重置', exportPdf: '匯出 PDF', exportCsv: '匯出 CSV',
+    results: '查詢結果', noResults: '無符合條件的結果', cveId: 'CVE 編號', cvss: 'CVSS 分數', published: '發佈日期',
+    description: '說明', affected: '受影響版本', recommendation: '建議措施', source: '資料來源',
+    deviceList: '設備清單', addDevice: '新增設備', deviceName: '設備名稱', model: '型號', firmwareVer: '韌體版本',
+    status: '狀態', lastCheck: '最後檢查', actions: '操作',
+    aiProvider: 'AI 分析引擎', aiModel: 'AI 模型', apiKey: 'API Key',
+    notifications: '通知設定', emailNotif: 'Email 通知', webNotif: '網頁通知', notifThreshold: '通知門檻',
+    language: '介面語言', save: '儲存', cancel: '取消',
+    updateAvail: '有更新可用', upToDate: '已是最新', vulnerable: '存在弱點', all: '全部',
+    from: '從', to: '至', searchPlaceholder: '輸入 CVE 編號或關鍵字...',
+    viewDetail: '查看詳情', close: '關閉', riskScore: '風險評分', topVulns: '高風險弱點 Top 5',
+    mitigations: '緩解措施', details: '詳細資訊', references: '參考連結',
+    newVulns: '新增弱點', resolved: '已處理', edit: '編輯', delete: '刪除',
+    check: '立即檢查', scanning: '掃描中...', aiAnalysis: 'AI 分析', analyzing: '分析中...', analyzeVuln: '使用 AI 分析此弱點',
+    authMethod: '認證方式', webAuth: '網頁認證', apiKeyAuth: 'API Key',
+  },
+  en: {
+    appTitle: 'SecVuln Tracker', appSubtitle: 'Security Vulnerability Tracking System',
+    dashboard: 'Dashboard', search: 'Vuln Search', devices: 'Devices', settings: 'Settings',
+    totalVulns: 'Total Vulns', criticalVulns: 'Critical', affectedDevices: 'Affected Devices', pendingActions: 'Pending Actions',
+    recentVulns: 'Recent Vulnerabilities', vulnTrend: 'Vulnerability Trend (6 months)', severityDist: 'Severity Distribution', vendorDist: 'Vendor Distribution',
+    searchTitle: 'Vulnerability Search', vendor: 'Vendor', product: 'Product', firmware: 'Firmware', dateRange: 'Date Range',
+    severity: 'Severity', searchBtn: 'Search', resetBtn: 'Reset', exportPdf: 'Export PDF', exportCsv: 'Export CSV',
+    results: 'Results', noResults: 'No matching results', cveId: 'CVE ID', cvss: 'CVSS Score', published: 'Published',
+    description: 'Description', affected: 'Affected Versions', recommendation: 'Recommendation', source: 'Source',
+    deviceList: 'Device List', addDevice: 'Add Device', deviceName: 'Device Name', model: 'Model', firmwareVer: 'Firmware Version',
+    status: 'Status', lastCheck: 'Last Checked', actions: 'Actions',
+    aiProvider: 'AI Analysis Engine', aiModel: 'AI Model', apiKey: 'API Key',
+    notifications: 'Notifications', emailNotif: 'Email Notifications', webNotif: 'Web Notifications', notifThreshold: 'Alert Threshold',
+    language: 'Language', save: 'Save', cancel: 'Cancel',
+    updateAvail: 'Update Available', upToDate: 'Up to Date', vulnerable: 'Vulnerable', all: 'All',
+    from: 'From', to: 'To', searchPlaceholder: 'Enter CVE ID or keyword...',
+    viewDetail: 'View Details', close: 'Close', riskScore: 'Risk Score', topVulns: 'Top 5 High-Risk Vulns',
+    mitigations: 'Mitigations', details: 'Details', references: 'References',
+    newVulns: 'New Vulns', resolved: 'Resolved', edit: 'Edit', delete: 'Delete',
+    check: 'Check Now', scanning: 'Scanning...', aiAnalysis: 'AI Analysis', analyzing: 'Analyzing...', analyzeVuln: 'Analyze with AI',
+    authMethod: 'Auth Method', webAuth: 'Web Auth', apiKeyAuth: 'API Key',
+  },
+};
+
+export const t = (lang, key) => LANG[lang]?.[key] || key;
