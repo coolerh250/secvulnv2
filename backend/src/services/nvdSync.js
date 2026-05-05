@@ -70,6 +70,7 @@ function collectMatches(nodes, out = []) {
 
 function parseConfigurations(configurations, vendorPrefix) {
   const products = new Set();
+  const rawProducts = new Set(); // lowercase CPE product names for matching
   const versions = new Set();
 
   for (const config of (configurations || [])) {
@@ -79,7 +80,10 @@ function parseConfigurations(configurations, vendorPrefix) {
 
       const parts = cpe.split(':');
       const prod  = parts[4] || '';
-      if (prod && prod !== '*' && prod !== '-') products.add(prod.replace(/_/g, ' '));
+      if (prod && prod !== '*' && prod !== '-') {
+        products.add(prod.replace(/_/g, ' '));
+        rawProducts.add(prod.toLowerCase().replace(/_/g, ' '));
+      }
 
       if (m.versionStartIncluding && m.versionEndExcluding) {
         versions.add(`${m.versionStartIncluding} – <${m.versionEndExcluding}`);
@@ -95,6 +99,7 @@ function parseConfigurations(configurations, vendorPrefix) {
   return {
     product:          [...products].slice(0, 3).join(', ') || null,
     firmwareVersions: [...versions].slice(0, 12),
+    affectedProducts: [...rawProducts],
   };
 }
 
@@ -129,22 +134,25 @@ async function upsertCve(cve, vendor) {
   if (!published) return 'skipped';
 
   const vendorPrefix = vendor.toLowerCase().split(' ')[0]; // 'fortinet' | 'palo'
-  const { product, firmwareVersions } = parseConfigurations(cve.configurations, vendorPrefix);
+  const { product, firmwareVersions, affectedProducts } = parseConfigurations(cve.configurations, vendorPrefix);
   const titleEn = buildTitle(descEn);
   const refs    = JSON.stringify((cve.references || []).map(r => r.url).slice(0, 15));
 
   const { rows } = await pool.query(
     `INSERT INTO vulnerabilities
-       (id, vendor, product, firmware_versions, cvss, severity, published,
+       (id, vendor, product, firmware_versions, affected_products, cvss, severity, published,
         title, title_en, description, description_en,
         source, recommendation, recommendation_en, refs, handle_status, updated_at)
-     VALUES ($1,$2,$3,$4::jsonb,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15::jsonb,'pending',NOW())
+     VALUES ($1,$2,$3,$4::jsonb,$5::jsonb,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16::jsonb,'pending',NOW())
      ON CONFLICT (id) DO UPDATE SET
        vendor            = EXCLUDED.vendor,
        product           = EXCLUDED.product,
        firmware_versions = CASE WHEN jsonb_array_length(EXCLUDED.firmware_versions) > 0
                                 THEN EXCLUDED.firmware_versions
                                 ELSE vulnerabilities.firmware_versions END,
+       affected_products = CASE WHEN jsonb_array_length(EXCLUDED.affected_products) > 0
+                                THEN EXCLUDED.affected_products
+                                ELSE vulnerabilities.affected_products END,
        cvss              = EXCLUDED.cvss,
        severity          = EXCLUDED.severity,
        published         = EXCLUDED.published,
@@ -161,6 +169,7 @@ async function upsertCve(cve, vendor) {
     [
       id, vendor, product || vendor,
       JSON.stringify(firmwareVersions),
+      JSON.stringify(affectedProducts),
       score, severity, published,
       titleEn, titleEn, descEn, descEn,
       'NVD',

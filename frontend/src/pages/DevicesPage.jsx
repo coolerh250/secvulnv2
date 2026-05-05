@@ -43,16 +43,53 @@ function affectsDevice(deviceFirmware, firmwareVersions) {
 }
 
 // ---------------------------------------------------------------------------
+// Device type / product matching (mirrors backend deviceController logic)
+// ---------------------------------------------------------------------------
+
+const DEVICE_TYPE_PRODUCTS = {
+  'FortiGate':     ['fortios', 'fortios ips engine'],
+  'FortiWiFi':     ['fortios', 'fortiwifi'],
+  'FortiAnalyzer': ['fortianalyzer'],
+  'FortiManager':  ['fortimanager'],
+  'FortiProxy':    ['fortiproxy'],
+  'FortiADC':      ['fortiadc'],
+  'FortiMail':     ['fortimail'],
+  'FortiWeb':      ['fortiweb'],
+  'PA-Series':     ['pan-os'],
+  'Panorama':      ['panorama', 'pan-os'],
+};
+
+const DEVICE_TYPE_OPTIONS = {
+  'Fortinet':  ['FortiGate', 'FortiWiFi', 'FortiAnalyzer', 'FortiManager', 'FortiProxy', 'FortiADC', 'FortiMail', 'FortiWeb'],
+  'Palo Alto': ['PA-Series', 'Panorama'],
+};
+
+function isProductMatch(deviceType, affectedProducts) {
+  if (!deviceType) return true;
+  const expected = DEVICE_TYPE_PRODUCTS[deviceType];
+  if (!expected) return true;
+  if (!affectedProducts || affectedProducts.length === 0) return true;
+  const ap = affectedProducts.map(p => String(p).toLowerCase());
+  return expected.some(e => ap.some(p => p === e || p.startsWith(e)));
+}
+
+// ---------------------------------------------------------------------------
 // Sub-components
 // ---------------------------------------------------------------------------
 
 function DeviceForm({ form, setForm, lang, onSave, onCancel }) {
+  const typeOpts = (DEVICE_TYPE_OPTIONS[form.vendor] || []).map(v => ({ value: v, label: v }));
   return (
     <Card style={{ marginBottom: 16 }}>
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12, marginBottom: 12 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 12, marginBottom: 12 }}>
         <InputField label={t(lang, 'deviceName')} value={form.name} onChange={v => setForm({ ...form, name: v })} placeholder={lang === 'zh' ? '例：總部防火牆' : 'e.g. HQ Firewall'} />
-        <SelectField label={t(lang, 'vendor')} value={form.vendor} onChange={v => setForm({ ...form, vendor: v })} options={[{ value: 'Fortinet', label: 'Fortinet' }, { value: 'Palo Alto', label: 'Palo Alto' }]} />
-        <InputField label={t(lang, 'model')}       value={form.model}    onChange={v => setForm({ ...form, model: v })}    placeholder="e.g. FortiGate 60F" />
+        <SelectField label={t(lang, 'vendor')} value={form.vendor}
+          onChange={v => setForm({ ...form, vendor: v, device_type: (DEVICE_TYPE_OPTIONS[v] || [])[0] || '' })}
+          options={[{ value: 'Fortinet', label: 'Fortinet' }, { value: 'Palo Alto', label: 'Palo Alto' }]} />
+        <SelectField label={lang === 'zh' ? '設備種類' : 'Device Type'} value={form.device_type}
+          onChange={v => setForm({ ...form, device_type: v })}
+          options={[{ value: '', label: lang === 'zh' ? '未指定' : 'Unspecified' }, ...typeOpts]} />
+        <InputField label={t(lang, 'model')}       value={form.model}    onChange={v => setForm({ ...form, model: v })}    placeholder="e.g. 60F" />
         <InputField label={t(lang, 'firmwareVer')} value={form.firmware} onChange={v => setForm({ ...form, firmware: v })} placeholder="e.g. 7.0.14" />
       </div>
       <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
@@ -93,7 +130,7 @@ export function DevicesPage({ onNavigate }) {
   const [editId,      setEditId]      = useState(null);
   const [scanning,    setScanning]    = useState(null);
   const [scanningAll, setScanningAll] = useState(false);
-  const [form, setForm] = useState({ name: '', vendor: 'Fortinet', model: '', firmware: '' });
+  const [form, setForm] = useState({ name: '', vendor: 'Fortinet', device_type: 'FortiGate', model: '', firmware: '' });
 
   // Vuln expansion state
   const [expandedId,       setExpandedId]       = useState(null);
@@ -110,18 +147,18 @@ export function DevicesPage({ onNavigate }) {
   const handleAdd = async () => {
     const res = await deviceApi.create({ ...form, name_en: form.name });
     setDevices(prev => [...prev, res.data]);
-    setShowAdd(false); setForm({ name: '', vendor: 'Fortinet', model: '', firmware: '' });
+    setShowAdd(false); setForm({ name: '', vendor: 'Fortinet', device_type: 'FortiGate', model: '', firmware: '' });
   };
 
   const handleEdit = (dev) => {
     setEditId(dev.id);
-    setForm({ name: lang === 'zh' ? dev.name : (dev.name_en || dev.name), vendor: dev.vendor, model: dev.model, firmware: dev.firmware });
+    setForm({ name: lang === 'zh' ? dev.name : (dev.name_en || dev.name), vendor: dev.vendor, device_type: dev.device_type || '', model: dev.model, firmware: dev.firmware });
   };
 
   const handleSaveEdit = async () => {
     const res = await deviceApi.update(editId, { ...form, name_en: form.name });
     setDevices(prev => prev.map(d => d.id === editId ? res.data : d));
-    setEditId(null); setForm({ name: '', vendor: 'Fortinet', model: '', firmware: '' });
+    setEditId(null); setForm({ name: '', vendor: 'Fortinet', device_type: 'FortiGate', model: '', firmware: '' });
   };
 
   const handleDelete = async (id) => {
@@ -161,7 +198,10 @@ export function DevicesPage({ onNavigate }) {
     setVulnsLoading(true);
     try {
       const res = await vulnApi.list({ vendor: device.vendor });
-      const filtered = res.data.filter(v => affectsDevice(device.firmware, v.firmware_versions));
+      const filtered = res.data.filter(v =>
+        isProductMatch(device.device_type, v.affected_products) &&
+        affectsDevice(device.firmware, v.firmware_versions)
+      );
       setDeviceVulns(prev => ({ ...prev, [device.id]: filtered }));
     } finally {
       setVulnsLoading(false);
@@ -209,7 +249,7 @@ export function DevicesPage({ onNavigate }) {
     </div>
   );
 
-  const COLS = '1fr 100px 140px 100px 100px 80px 100px 140px';
+  const COLS = '1fr 90px 120px 130px 90px 100px 70px 90px 130px';
 
   return (
     <div style={{ padding: 28, display: 'flex', flexDirection: 'column', gap: 20 }}>
@@ -221,7 +261,7 @@ export function DevicesPage({ onNavigate }) {
             <Btn icon={Icons.refresh} onClick={handleScanAll} disabled={scanningAll}>
               {scanningAll ? (lang === 'zh' ? '掃描中...' : 'Scanning...') : (lang === 'zh' ? '重新比對所有設備' : 'Re-scan All')}
             </Btn>
-            <Btn variant="primary" icon={Icons.plus} onClick={() => { setShowAdd(true); setEditId(null); setForm({ name: '', vendor: 'Fortinet', model: '', firmware: '' }); }}>
+            <Btn variant="primary" icon={Icons.plus} onClick={() => { setShowAdd(true); setEditId(null); setForm({ name: '', vendor: 'Fortinet', device_type: 'FortiGate', model: '', firmware: '' }); }}>
               {t(lang, 'addDevice')}
             </Btn>
           </div>
@@ -250,7 +290,7 @@ export function DevicesPage({ onNavigate }) {
       <Card style={{ padding: 0, overflow: 'hidden' }}>
         {/* Table header */}
         <div style={{ display: 'grid', gridTemplateColumns: COLS, padding: '10px 16px', borderBottom: `1px solid ${TOKENS.border}`, background: 'rgba(255,255,255,0.02)' }}>
-          {[t(lang, 'deviceName'), t(lang, 'vendor'), t(lang, 'model'), t(lang, 'firmwareVer'), t(lang, 'status'), lang === 'zh' ? '弱點數' : 'Vulns', t(lang, 'lastCheck'), t(lang, 'actions')].map(h => (
+          {[t(lang, 'deviceName'), t(lang, 'vendor'), lang === 'zh' ? '設備種類' : 'Type', t(lang, 'model'), t(lang, 'firmwareVer'), t(lang, 'status'), lang === 'zh' ? '弱點數' : 'Vulns', t(lang, 'lastCheck'), t(lang, 'actions')].map(h => (
             <span key={h} style={{ fontSize: 12, fontWeight: 600, color: TOKENS.textSecondary }}>{h}</span>
           ))}
         </div>
@@ -267,6 +307,7 @@ export function DevicesPage({ onNavigate }) {
               <div style={{ display: 'grid', gridTemplateColumns: COLS, padding: '12px 16px', borderBottom: isExpanded ? 'none' : `1px solid ${TOKENS.border}`, alignItems: 'center', background: isExpanded ? `${accentColor}06` : 'transparent' }}>
                 <span style={{ fontSize: 13, fontWeight: 500, color: TOKENS.text }}>{lang === 'zh' ? d.name : (d.name_en || d.name)}</span>
                 <span style={{ fontSize: 12, color: TOKENS.textSecondary }}>{d.vendor}</span>
+                <span style={{ fontSize: 12, color: TOKENS.textSecondary }}>{d.device_type || '—'}</span>
                 <span style={{ fontSize: 12, color: TOKENS.text, fontFamily: TOKENS.mono }}>{d.model}</span>
                 <span style={{ fontSize: 12, color: TOKENS.primary, fontFamily: TOKENS.mono }}>{d.firmware}</span>
                 <StatusBadge status={d.status} lang={lang} />
