@@ -72,7 +72,7 @@ export function SettingsPage({ onNavigate }) {
       const res = await settingsApi.syncSource(src.id);
       const now = new Date().toISOString().slice(0, 16).replace('T', ' ');
       updateSource(src.id, { lastSync: now, syncStatus: 'ok' });
-      setSyncResult(prev => ({ ...prev, [src.id]: { inserted: res.data.inserted, updated: res.data.updated } }));
+      setSyncResult(prev => ({ ...prev, [src.id]: { inserted: res.data.inserted, updated: res.data.updated, removed: res.data.removed } }));
     } catch (err) {
       updateSource(src.id, { syncStatus: 'fail' });
       const msg = err.response?.data?.error || (lang === 'zh' ? '同步失敗' : 'Sync failed');
@@ -277,8 +277,8 @@ export function SettingsPage({ onNavigate }) {
                         ) : (
                           <span style={{ color: TOKENS.primary }}>
                             ✓ {lang === 'zh'
-                              ? `同步完成 — 新增 ${syncResult[src.id].inserted} 筆，更新 ${syncResult[src.id].updated} 筆`
-                              : `Sync complete — ${syncResult[src.id].inserted} new, ${syncResult[src.id].updated} updated`}
+                              ? `同步完成 — 新增 ${syncResult[src.id].inserted} 筆，更新 ${syncResult[src.id].updated} 筆${syncResult[src.id].removed > 0 ? `，移除 ${syncResult[src.id].removed} 筆過期資料` : ''}`
+                              : `Sync complete — ${syncResult[src.id].inserted} new, ${syncResult[src.id].updated} updated${syncResult[src.id].removed > 0 ? `, ${syncResult[src.id].removed} expired removed` : ''}`}
                             {(syncResult[src.id].inserted > 0 || syncResult[src.id].updated > 0) && onNavigate && (
                               <button onClick={() => onNavigate('search')}
                                 style={{ marginLeft: 12, background: 'none', border: 'none', color: TOKENS.primary, cursor: 'pointer', fontSize: 12, fontFamily: TOKENS.font, textDecoration: 'underline', padding: 0 }}>

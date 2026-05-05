@@ -94,7 +94,7 @@ async function syncSource(req, res, next) {
       [JSON.stringify(updated)]
     );
 
-    res.json({ ok: true, inserted: result.inserted, updated: result.updated });
+    res.json({ ok: true, inserted: result.inserted, updated: result.updated, removed: result.removed });
   } catch (err) {
     try {
       const { rows } = await pool.query('SELECT data_sources FROM settings WHERE id = 1');

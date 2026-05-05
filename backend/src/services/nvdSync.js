@@ -1,6 +1,14 @@
 const https = require('https');
 const pool  = require('../db');
 
+const CUTOFF_YEARS = 5;
+
+function getCutoffDate() {
+  const d = new Date();
+  d.setFullYear(d.getFullYear() - CUTOFF_YEARS);
+  return d.toISOString().slice(0, 10); // 'YYYY-MM-DD'
+}
+
 // Which NVD keyword queries each source ID maps to
 const SOURCE_MAP = {
   nvd:      [{ keyword: 'Fortinet', vendor: 'Fortinet' }, { keyword: 'Palo Alto Networks', vendor: 'Palo Alto' }],
@@ -132,6 +140,7 @@ async function upsertCve(cve, vendor) {
   const { score, severity } = parseCvss(cve.metrics);
   const published = (cve.published || cve.lastModified || '').slice(0, 10);
   if (!published) return 'skipped';
+  if (published < getCutoffDate()) return 'skipped';
 
   const vendorPrefix = vendor.toLowerCase().split(' ')[0]; // 'fortinet' | 'palo'
   const { product, firmwareVersions, affectedProducts } = parseConfigurations(cve.configurations, vendorPrefix);
@@ -253,7 +262,13 @@ async function sync(sourceId, settings) {
     totalUpdated  += r.updated;
   }
 
-  return { inserted: totalInserted, updated: totalUpdated };
+  // Remove vulnerabilities published more than 5 years ago
+  const cutoff = getCutoffDate();
+  const { rowCount: removed } = await pool.query(
+    'DELETE FROM vulnerabilities WHERE published < $1', [cutoff]
+  );
+
+  return { inserted: totalInserted, updated: totalUpdated, removed: removed || 0 };
 }
 
 module.exports = { sync, SOURCE_MAP };
