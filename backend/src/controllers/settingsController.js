@@ -68,7 +68,45 @@ async function testSource(req, res, next) {
 }
 
 async function syncSource(req, res, next) {
-  res.status(501).json({ error: 'Sync not implemented — data source integration pending' });
+  const sourceId = req.params.id;
+  try {
+    const { rows } = await pool.query('SELECT * FROM settings WHERE id = 1');
+    const settings = rows[0];
+    if (!settings) return res.status(500).json({ error: 'Settings not found' });
+
+    const sources   = settings.data_sources || [];
+    const srcIndex  = sources.findIndex(s => s.id === sourceId);
+    if (srcIndex === -1) return res.status(404).json({ error: 'Source not found' });
+
+    const { sync, SOURCE_MAP } = require('../services/nvdSync');
+    if (!SOURCE_MAP[sourceId]) {
+      return res.status(501).json({ error: `Sync for "${sourceId}" is not yet implemented` });
+    }
+
+    const result = await sync(sourceId, settings);
+
+    const now = new Date().toISOString().slice(0, 16).replace('T', ' ');
+    const updated = sources.map((s, i) =>
+      i === srcIndex ? { ...s, lastSync: now, syncStatus: 'ok' } : s
+    );
+    await pool.query(
+      'UPDATE settings SET data_sources = $1, updated_at = NOW() WHERE id = 1',
+      [JSON.stringify(updated)]
+    );
+
+    res.json({ ok: true, inserted: result.inserted, updated: result.updated });
+  } catch (err) {
+    try {
+      const { rows } = await pool.query('SELECT data_sources FROM settings WHERE id = 1');
+      const sources  = rows[0]?.data_sources || [];
+      const srcIndex = sources.findIndex(s => s.id === sourceId);
+      if (srcIndex !== -1) {
+        sources[srcIndex] = { ...sources[srcIndex], syncStatus: 'fail' };
+        await pool.query('UPDATE settings SET data_sources = $1 WHERE id = 1', [JSON.stringify(sources)]);
+      }
+    } catch { /* ignore secondary failure */ }
+    next(err);
+  }
 }
 
 module.exports = { get, update, testSource, syncSource };

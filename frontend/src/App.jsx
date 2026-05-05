@@ -42,7 +42,7 @@ function AppShell() {
       case 'search':    return <SearchPage preset={searchPreset} onPresetConsumed={() => setSearchPreset(null)} />;
       case 'devices':   return <DevicesPage />;
       case 'users':     return <UsersPage />;
-      case 'settings':  return <SettingsPage />;
+      case 'settings':  return <SettingsPage onNavigate={navigateTo} />;
       default:          return <DashboardPage onNavigate={navigateTo} />;
     }
   };

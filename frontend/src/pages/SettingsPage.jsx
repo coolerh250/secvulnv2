@@ -2,11 +2,13 @@ import { useState, useEffect } from 'react';
 import { TOKENS, t } from '../styles/tokens';
 import { useLang } from '../contexts/LangContext';
 import { settingsApi } from '../services/api';
+import { useAuth } from '../contexts/AuthContext';
 import { Card, Btn, InputField, SelectField } from '../components/ui';
 import { Icons } from '../components/Icons';
 
-export function SettingsPage() {
+export function SettingsPage({ onNavigate }) {
   const { lang } = useLang();
+  const { can } = useAuth();
   const [loading, setLoading] = useState(true);
   const [saved,   setSaved]   = useState(false);
 
@@ -23,6 +25,7 @@ export function SettingsPage() {
   const [testingId,    setTestingId]    = useState(null);
   const [testResult,   setTestResult]   = useState({});
   const [syncingId,    setSyncingId]    = useState(null);
+  const [syncResult,   setSyncResult]   = useState({});
   const [showAddSrc,   setShowAddSrc]   = useState(false);
   const [newSrc,       setNewSrc]       = useState({ name: '', desc: '', url: '', apiKey: '', syncFreq: '24h' });
 
@@ -53,7 +56,7 @@ export function SettingsPage() {
   const handleTest = async (src) => {
     setTestingId(src.id); setTestResult(prev => ({ ...prev, [src.id]: null }));
     try {
-      await fetch(`/api/settings/sources/${src.id}/test`, { method: 'POST', headers: { Authorization: `Bearer ${localStorage.getItem('token')}` } });
+      await settingsApi.testSource(src.id);
       setTestResult(prev => ({ ...prev, [src.id]: 'ok' }));
     } catch {
       setTestResult(prev => ({ ...prev, [src.id]: 'fail' }));
@@ -64,12 +67,16 @@ export function SettingsPage() {
 
   const handleSync = async (src) => {
     setSyncingId(src.id);
+    setSyncResult(prev => ({ ...prev, [src.id]: null }));
     try {
-      await fetch(`/api/settings/sources/${src.id}/sync`, { method: 'POST', headers: { Authorization: `Bearer ${localStorage.getItem('token')}` } });
+      const res = await settingsApi.syncSource(src.id);
       const now = new Date().toISOString().slice(0, 16).replace('T', ' ');
       updateSource(src.id, { lastSync: now, syncStatus: 'ok' });
-    } catch {
+      setSyncResult(prev => ({ ...prev, [src.id]: { inserted: res.data.inserted, updated: res.data.updated } }));
+    } catch (err) {
       updateSource(src.id, { syncStatus: 'fail' });
+      const msg = err.response?.data?.error || (lang === 'zh' ? '同步失敗' : 'Sync failed');
+      setSyncResult(prev => ({ ...prev, [src.id]: { error: msg } }));
     } finally {
       setSyncingId(null);
     }
@@ -263,6 +270,25 @@ export function SettingsPage() {
                         </button>
                       </div>
                     </div>
+                    {syncResult[src.id] && (
+                      <div style={{ padding: '10px 14px', borderRadius: TOKENS.radiusSm, background: syncResult[src.id].error ? TOKENS.dangerDim : TOKENS.primaryDim, border: `1px solid ${syncResult[src.id].error ? TOKENS.danger + '40' : 'rgba(0,212,170,0.25)'}`, fontSize: 12 }}>
+                        {syncResult[src.id].error ? (
+                          <span style={{ color: TOKENS.danger }}>✗ {syncResult[src.id].error}</span>
+                        ) : (
+                          <span style={{ color: TOKENS.primary }}>
+                            ✓ {lang === 'zh'
+                              ? `同步完成 — 新增 ${syncResult[src.id].inserted} 筆，更新 ${syncResult[src.id].updated} 筆`
+                              : `Sync complete — ${syncResult[src.id].inserted} new, ${syncResult[src.id].updated} updated`}
+                            {(syncResult[src.id].inserted > 0 || syncResult[src.id].updated > 0) && onNavigate && (
+                              <button onClick={() => onNavigate('search')}
+                                style={{ marginLeft: 12, background: 'none', border: 'none', color: TOKENS.primary, cursor: 'pointer', fontSize: 12, fontFamily: TOKENS.font, textDecoration: 'underline', padding: 0 }}>
+                                {lang === 'zh' ? '前往查看 →' : 'View results →'}
+                              </button>
+                            )}
+                          </span>
+                        )}
+                      </div>
+                    )}
                     {src.type === 'custom' && (
                       <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
                         <Btn variant="danger" icon={Icons.trash} onClick={() => setSources(prev => prev.filter(s => s.id !== src.id))}>{lang === 'zh' ? '移除此來源' : 'Remove Source'}</Btn>

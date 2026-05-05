@@ -62,8 +62,10 @@ export const userApi = {
 
 // Settings
 export const settingsApi = {
-  get:    ()     => api.get('/settings'),
-  update: (data) => api.put('/settings', data),
+  get:        ()     => api.get('/settings'),
+  update:     (data) => api.put('/settings', data),
+  testSource: (id)   => api.post(`/settings/sources/${id}/test`),
+  syncSource: (id)   => api.post(`/settings/sources/${id}/sync`),
 };
 
 export default api;
