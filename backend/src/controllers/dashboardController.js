@@ -67,4 +67,14 @@ async function reviews(req, res, next) {
   }
 }
 
-module.exports = { stats, trend, reviews };
+async function rebuildTrendsHandler(req, res, next) {
+  try {
+    const { rebuildTrends } = require('../services/nvdSync');
+    const months = await rebuildTrends();
+    res.json({ ok: true, months });
+  } catch (err) {
+    next(err);
+  }
+}
+
+module.exports = { stats, trend, reviews, rebuildTrendsHandler };

@@ -243,6 +243,48 @@ async function syncVendor(keyword, vendor, apiKey, sinceDate) {
 }
 
 // ---------------------------------------------------------------------------
+// ---------------------------------------------------------------------------
+// Rebuild vuln_trends from current vulnerabilities table
+// ---------------------------------------------------------------------------
+
+const MONTH_LABELS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+
+async function rebuildTrends() {
+  const { rows } = await pool.query(
+    `SELECT
+       EXTRACT(YEAR  FROM published)::int AS year,
+       EXTRACT(MONTH FROM published)::int AS month_num,
+       severity,
+       COUNT(*)::int AS cnt
+     FROM vulnerabilities
+     WHERE published IS NOT NULL
+     GROUP BY 1, 2, 3`
+  );
+
+  const map = {};
+  for (const r of rows) {
+    const key = `${r.year}-${r.month_num}`;
+    if (!map[key]) map[key] = { year: r.year, month_num: r.month_num, CRITICAL: 0, HIGH: 0, MEDIUM: 0, LOW: 0 };
+    map[key][r.severity] = (map[key][r.severity] || 0) + r.cnt;
+  }
+
+  for (const v of Object.values(map)) {
+    await pool.query(
+      `INSERT INTO vuln_trends (month, year, critical_count, high_count, medium_count, low_count)
+       VALUES ($1, $2, $3, $4, $5, $6)
+       ON CONFLICT (month, year) DO UPDATE SET
+         critical_count = EXCLUDED.critical_count,
+         high_count     = EXCLUDED.high_count,
+         medium_count   = EXCLUDED.medium_count,
+         low_count      = EXCLUDED.low_count`,
+      [MONTH_LABELS[v.month_num - 1], v.year, v.CRITICAL || 0, v.HIGH || 0, v.MEDIUM || 0, v.LOW || 0]
+    );
+  }
+
+  return Object.keys(map).length; // number of months updated
+}
+
+// ---------------------------------------------------------------------------
 // Public entry point called by settingsController
 // ---------------------------------------------------------------------------
 
@@ -268,7 +310,10 @@ async function sync(sourceId, settings) {
     'DELETE FROM vulnerabilities WHERE published < $1', [cutoff]
   );
 
+  // Rebuild monthly trend aggregates
+  await rebuildTrends();
+
   return { inserted: totalInserted, updated: totalUpdated, removed: removed || 0 };
 }
 
-module.exports = { sync, SOURCE_MAP };
+module.exports = { sync, rebuildTrends, SOURCE_MAP };

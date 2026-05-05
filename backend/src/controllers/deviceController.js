@@ -188,4 +188,20 @@ async function scanAll(req, res, next) {
   }
 }
 
-module.exports = { list, create, update, remove, scan, scanAll };
+// Recalculate vuln_count for all devices matching a given vendor.
+// Called (fire-and-forget) when a vulnerability's counted status changes.
+async function recalcForVendor(vendor) {
+  const { rows: devices } = await pool.query(
+    'SELECT * FROM devices WHERE vendor = $1', [vendor]
+  );
+  for (const device of devices) {
+    const vuln_count = await countAffectedVulns(device.vendor, device.firmware, device.device_type);
+    const status = vuln_count > 0 ? 'vulnerable' : 'upToDate';
+    await pool.query(
+      `UPDATE devices SET status=$1, vuln_count=$2, last_check=CURRENT_DATE, updated_at=NOW() WHERE id=$3`,
+      [status, vuln_count, device.id]
+    );
+  }
+}
+
+module.exports = { list, create, update, remove, scan, scanAll, recalcForVendor };

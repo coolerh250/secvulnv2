@@ -11,10 +11,19 @@ export function SearchPage({ preset, onPresetConsumed }) {
   const { lang } = useLang();
   const { can } = useAuth();
   const [vendor,       setVendor]       = useState('all');
+  const [deviceType,   setDeviceType]   = useState('all');
   const [product,      setProduct]      = useState('');
   const [firmware,     setFirmware]     = useState('');
   const [severity,     setSeverity]     = useState('all');
   const [handleFilter, setHandleFilter] = useState('all');
+
+  const DEVICE_TYPE_OPTIONS = {
+    'Fortinet':  ['FortiGate', 'FortiWiFi', 'FortiAnalyzer', 'FortiManager', 'FortiProxy', 'FortiADC', 'FortiMail', 'FortiWeb'],
+    'Palo Alto': ['PA-Series', 'Panorama'],
+  };
+  const deviceTypeOpts = vendor !== 'all'
+    ? [{ value: 'all', label: t(lang, 'all') }, ...(DEVICE_TYPE_OPTIONS[vendor] || []).map(v => ({ value: v, label: v }))]
+    : [{ value: 'all', label: t(lang, 'all') }, ...Object.values(DEVICE_TYPE_OPTIONS).flat().map(v => ({ value: v, label: v }))];
   const today = new Date().toISOString().slice(0, 10);
   const ninetyDaysAgo = new Date(Date.now() - 90 * 86400000).toISOString().slice(0, 10);
   const [dateFrom,  setDateFrom]  = useState(ninetyDaysAgo);
@@ -31,12 +40,14 @@ export function SearchPage({ preset, onPresetConsumed }) {
     setLoading(true);
     try {
       const params = {};
-      const v = overrides.vendor       ?? (vendor       !== 'all' ? vendor       : undefined);
-      const s = overrides.severity     ?? (severity     !== 'all' ? severity     : undefined);
-      const h = overrides.handleStatus ?? (handleFilter !== 'all' ? handleFilter : undefined);
-      if (v) params.vendor        = v;
-      if (s) params.severity      = s;
-      if (h) params.handle_status = h;
+      const v  = overrides.vendor       ?? (vendor       !== 'all' ? vendor       : undefined);
+      const s  = overrides.severity     ?? (severity     !== 'all' ? severity     : undefined);
+      const h  = overrides.handleStatus ?? (handleFilter !== 'all' ? handleFilter : undefined);
+      const dt = overrides.deviceType   ?? (deviceType   !== 'all' ? deviceType   : undefined);
+      if (v)  params.vendor        = v;
+      if (s)  params.severity      = s;
+      if (h)  params.handle_status = h;
+      if (dt) params.device_type   = dt;
       if (product)  params.product   = product;
       if (firmware) params.firmware  = firmware;
       if (dateFrom) params.date_from = dateFrom;
@@ -67,7 +78,7 @@ export function SearchPage({ preset, onPresetConsumed }) {
   }, [preset]);
 
   const doReset = () => {
-    setVendor('all'); setProduct(''); setFirmware(''); setSeverity('all');
+    setVendor('all'); setDeviceType('all'); setProduct(''); setFirmware(''); setSeverity('all');
     setHandleFilter('all');
     setDateFrom(new Date(Date.now() - 90 * 86400000).toISOString().slice(0, 10));
     setDateTo(new Date().toISOString().slice(0, 10));
@@ -121,15 +132,18 @@ export function SearchPage({ preset, onPresetConsumed }) {
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 16 }}>
           {Icons.filter}<span style={{ fontSize: 14, fontWeight: 600, color: TOKENS.text }}>{t(lang, 'searchTitle')}</span>
         </div>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 12, marginBottom: 12 }}>
-          <SelectField label={t(lang, 'vendor')} value={vendor} onChange={setVendor} options={[
-            { value: 'all', label: t(lang, 'all') }, { value: 'Fortinet', label: 'Fortinet' }, { value: 'Palo Alto', label: 'Palo Alto Networks' }
-          ]} />
-          <InputField label={t(lang, 'product')}   value={product}   onChange={setProduct}   placeholder="e.g. FortiGate 60F" />
-          <InputField label={t(lang, 'firmware')}  value={firmware}  onChange={setFirmware}  placeholder="e.g. 7.0.14" />
-          <SelectField label={t(lang, 'severity')} value={severity}  onChange={setSeverity}  options={[
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12, marginBottom: 12 }}>
+          <SelectField label={t(lang, 'vendor')} value={vendor}
+            onChange={v => { setVendor(v); setDeviceType('all'); }}
+            options={[{ value: 'all', label: t(lang, 'all') }, { value: 'Fortinet', label: 'Fortinet' }, { value: 'Palo Alto', label: 'Palo Alto Networks' }]} />
+          <SelectField label={lang === 'zh' ? '設備種類' : 'Device Type'} value={deviceType} onChange={setDeviceType} options={deviceTypeOpts} />
+          <SelectField label={t(lang, 'severity')} value={severity} onChange={setSeverity} options={[
             { value: 'all', label: t(lang, 'all') }, { value: 'CRITICAL', label: 'Critical' }, { value: 'HIGH', label: 'High' }, { value: 'MEDIUM', label: 'Medium' }, { value: 'LOW', label: 'Low' }
           ]} />
+        </div>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12, marginBottom: 12 }}>
+          <InputField label={t(lang, 'product')}  value={product}  onChange={setProduct}  placeholder="e.g. FortiGate 60F" />
+          <InputField label={t(lang, 'firmware')} value={firmware} onChange={setFirmware} placeholder="e.g. 7.0.14" />
           <SelectField label={lang === 'zh' ? '處理狀態' : 'Status'} value={handleFilter} onChange={setHandleFilter} options={[
             { value: 'all', label: t(lang, 'all') },
             ...Object.entries(VULN_STATUS).map(([k, v]) => ({ value: k, label: lang === 'zh' ? v.label : v.labelEn }))
