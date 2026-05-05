@@ -1,5 +1,57 @@
 const pool = require('../db');
 
+// ---------------------------------------------------------------------------
+// Firmware version matching helpers
+// ---------------------------------------------------------------------------
+
+// Parse "7.0.14" or "v7.0.14" → [7, 0, 14]
+function parseVer(str) {
+  return String(str).replace(/^v/i, '').split('.').map(n => parseInt(n, 10) || 0);
+}
+
+// -1 / 0 / 1
+function cmpVer(a, b) {
+  const len = Math.max(a.length, b.length);
+  for (let i = 0; i < len; i++) {
+    const d = (a[i] || 0) - (b[i] || 0);
+    if (d !== 0) return d < 0 ? -1 : 1;
+  }
+  return 0;
+}
+
+// Does this CVE's firmwareVersions array affect deviceFirmware?
+// Range format from nvdSync: "7.0.0 – <7.0.15" | "7.0.0 – 7.0.14" | "7.4.0"
+// Empty array → no CPE data → conservatively assume affected
+function affectsDevice(deviceFirmware, firmwareVersions) {
+  if (!deviceFirmware) return true;
+  if (!firmwareVersions || firmwareVersions.length === 0) return true;
+  const dev = parseVer(deviceFirmware);
+  for (const range of firmwareVersions) {
+    const parts = range.split(' – '); // ' – ' en-dash
+    if (parts.length === 1) {
+      if (cmpVer(dev, parseVer(parts[0].trim())) === 0) return true;
+    } else {
+      const start = parseVer(parts[0].trim());
+      const endStr = parts[1].trim();
+      const exclusive = endStr.startsWith('<');
+      const end = parseVer(endStr.replace('<', '').trim());
+      const inRange = cmpVer(dev, start) >= 0 &&
+        (exclusive ? cmpVer(dev, end) < 0 : cmpVer(dev, end) <= 0);
+      if (inRange) return true;
+    }
+  }
+  return false;
+}
+
+async function countAffectedVulns(vendor, firmware) {
+  const { rows } = await pool.query(
+    `SELECT firmware_versions FROM vulnerabilities
+     WHERE vendor = $1 AND handle_status NOT IN ('fixed')`,
+    [vendor]
+  );
+  return rows.filter(r => affectsDevice(firmware, r.firmware_versions)).length;
+}
+
 async function list(req, res, next) {
   try {
     const { rows } = await pool.query('SELECT * FROM devices ORDER BY id ASC');
@@ -60,11 +112,7 @@ async function scan(req, res, next) {
     if (!deviceRes.rows[0]) return res.status(404).json({ error: 'Device not found' });
 
     const device = deviceRes.rows[0];
-    const vulnRes = await pool.query(
-      `SELECT COUNT(*) FROM vulnerabilities WHERE vendor = $1 AND handle_status NOT IN ('fixed')`,
-      [device.vendor]
-    );
-    const vuln_count = parseInt(vulnRes.rows[0].count, 10);
+    const vuln_count = await countAffectedVulns(device.vendor, device.firmware);
     const status = vuln_count > 0 ? 'vulnerable' : 'upToDate';
 
     const { rows } = await pool.query(
@@ -84,11 +132,7 @@ async function scanAll(req, res, next) {
     if (devices.length === 0) return res.json({ updated: 0, devices: [] });
     const updated = [];
     for (const device of devices) {
-      const vulnRes = await pool.query(
-        `SELECT COUNT(*) FROM vulnerabilities WHERE vendor = $1 AND handle_status NOT IN ('fixed')`,
-        [device.vendor]
-      );
-      const vuln_count = parseInt(vulnRes.rows[0].count, 10);
+      const vuln_count = await countAffectedVulns(device.vendor, device.firmware);
       const status = vuln_count > 0 ? 'vulnerable' : 'upToDate';
       const { rows } = await pool.query(
         `UPDATE devices SET status=$1, vuln_count=$2, last_check=CURRENT_DATE, updated_at=NOW() WHERE id=$3 RETURNING *`,
