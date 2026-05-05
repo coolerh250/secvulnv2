@@ -181,26 +181,31 @@ async function syncVendor(keyword, vendor, apiKey, sinceDate) {
   // NVD rate limits: 50 req/30s with key, 5 req/30s without
   const delayMs = apiKey ? 700 : 6200;
 
-  // Use sinceDate only if it's a real past sync (more than 7 days ago).
-  // Seed data contains fake future/recent timestamps — treat those as first-run.
-  const TWO_YEARS_AGO = Date.now() - 2 * 365 * 86400000;
-  const SEVEN_DAYS_AGO = Date.now() - 7 * 86400000;
+  // NVD rules:
+  //   - pubStartDate requires pubEndDate and range ≤ 120 days → avoid entirely
+  //   - lastModStartDate + lastModEndDate works for incremental sync (range ≤ 120 days)
+  //   - No date filter → fetch all matching CVEs (used for initial sync)
+  const baseParams = { keywordSearch: keyword, resultsPerPage: 2000 };
+
   const sinceParsed = sinceDate && sinceDate !== '—' ? new Date(sinceDate).getTime() : 0;
-  const useIncremental = sinceParsed > 0 && sinceParsed < SEVEN_DAYS_AGO;
-  const fromDate = (useIncremental ? new Date(sinceParsed) : new Date(TWO_YEARS_AGO))
-    .toISOString().slice(0, 23);
+  const now         = Date.now();
+  const rangeMs     = now - sinceParsed;
+  const DAYS_7      = 7   * 86400000;
+  const DAYS_120    = 120 * 86400000;
+
+  // Use incremental window only when lastSync is a genuine past date (> 7 days ago, ≤ 120 days ago)
+  if (sinceParsed > 0 && rangeMs > DAYS_7 && rangeMs <= DAYS_120) {
+    baseParams.lastModStartDate = new Date(sinceParsed).toISOString().slice(0, 23);
+    baseParams.lastModEndDate   = new Date(now).toISOString().slice(0, 23);
+  }
+  // else: no date filter — fetch all (initial sync, seed-data fake timestamps, or range > 120 days)
 
   let startIndex   = 0;
   let totalResults = null;
   let inserted = 0, updated = 0;
 
   do {
-    const data = await nvdRequest({
-      keywordSearch:  keyword,
-      pubStartDate:   fromDate,
-      resultsPerPage: 2000,
-      startIndex,
-    }, apiKey);
+    const data = await nvdRequest({ ...baseParams, startIndex }, apiKey);
 
     if (totalResults === null) totalResults = data.totalResults || 0;
     const vulns = data.vulnerabilities || [];
