@@ -21,7 +21,7 @@ export function DashboardPage({ onNavigate }) {
       dashboardApi.stats(),
       dashboardApi.trend(),
       dashboardApi.reviews(),
-      vulnApi.list({ date_from: '2026-01-01', date_to: '2026-12-31' }),
+      vulnApi.list({ date_from: `${new Date().getFullYear()}-01-01`, date_to: `${new Date().getFullYear()}-12-31` }),
     ]).then(([s, tr, rv, vl]) => {
       setStats(s.data);
       setTrend(tr.data);

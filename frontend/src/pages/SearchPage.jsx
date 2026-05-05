@@ -14,8 +14,10 @@ export function SearchPage({ preset, onPresetConsumed }) {
   const [firmware,     setFirmware]     = useState('');
   const [severity,     setSeverity]     = useState('all');
   const [handleFilter, setHandleFilter] = useState('all');
-  const [dateFrom,     setDateFrom]     = useState('2026-03-01');
-  const [dateTo,       setDateTo]       = useState('2026-04-29');
+  const today = new Date().toISOString().slice(0, 10);
+  const ninetyDaysAgo = new Date(Date.now() - 90 * 86400000).toISOString().slice(0, 10);
+  const [dateFrom,     setDateFrom]     = useState(ninetyDaysAgo);
+  const [dateTo,       setDateTo]       = useState(today);
   const [keyword,      setKeyword]      = useState('');
   const [results,      setResults]      = useState([]);
   const [loading,      setLoading]      = useState(false);
@@ -72,7 +74,10 @@ export function SearchPage({ preset, onPresetConsumed }) {
 
   const doReset = () => {
     setVendor('all'); setProduct(''); setFirmware(''); setSeverity('all');
-    setHandleFilter('all'); setDateFrom('2026-03-01'); setDateTo('2026-04-29'); setKeyword('');
+    setHandleFilter('all');
+    setDateFrom(new Date(Date.now() - 90 * 86400000).toISOString().slice(0, 10));
+    setDateTo(new Date().toISOString().slice(0, 10));
+    setKeyword('');
     doSearch({});
   };
 
@@ -114,14 +119,8 @@ export function SearchPage({ preset, onPresetConsumed }) {
     a.click();
   };
 
-  const runAiAnalysis = async (vuln) => {
-    setAiLoading(true); setAiResult(null);
-    await new Promise(r => setTimeout(r, 2000));
-    const analyses = {
-      zh: `## AI 分析報告：${vuln.id}\n\n**風險評估：**此弱點的 CVSS 評分為 ${vuln.cvss}，${vuln.cvss >= 9 ? '具有極高的被利用風險，建議立即採取行動。' : vuln.cvss >= 7 ? '被利用的可能性較高，建議在一週內完成修補。' : '風險相對可控，建議在下次維護窗口時處理。'}\n\n**建議措施：**\n1. ${vuln.recommendation}\n2. 檢查是否有可用的 workaround 或 IPS 規則\n3. 更新後驗證服務正常運作`,
-      en: `## AI Analysis: ${vuln.id}\n\n**Risk Assessment:** CVSS ${vuln.cvss}, ${vuln.cvss >= 9 ? 'Extremely high exploitation risk — immediate action recommended.' : vuln.cvss >= 7 ? 'High likelihood — remediate within one week.' : 'Manageable risk — address during next maintenance window.'}\n\n**Recommendations:**\n1. ${vuln.recommendation_en}\n2. Check for available workarounds or IPS signatures\n3. Verify service post-update`,
-    };
-    setAiResult(analyses[lang]); setAiLoading(false);
+  const runAiAnalysis = async () => {
+    setAiResult(lang === 'zh' ? '## AI 分析尚未開放\n\n此功能需先在「設定」中完成 AI 服務設定，並由後端連線至 AI API。' : '## AI Analysis Not Available\n\nThis feature requires AI service configuration in Settings and a backend API connection.');
   };
 
   const SortBtn = ({ field, label }) => (

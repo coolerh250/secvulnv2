@@ -56,15 +56,22 @@ async function remove(req, res, next) {
 async function scan(req, res, next) {
   try {
     const { id } = req.params;
-    // Simulate scan: random result
-    const status     = Math.random() > 0.5 ? 'vulnerable' : 'upToDate';
-    const vuln_count = status === 'vulnerable' ? Math.floor(Math.random() * 3) + 1 : 0;
+    const deviceRes = await pool.query('SELECT * FROM devices WHERE id = $1', [id]);
+    if (!deviceRes.rows[0]) return res.status(404).json({ error: 'Device not found' });
+
+    const device = deviceRes.rows[0];
+    const vulnRes = await pool.query(
+      `SELECT COUNT(*) FROM vulnerabilities WHERE vendor = $1 AND handle_status NOT IN ('fixed')`,
+      [device.vendor]
+    );
+    const vuln_count = parseInt(vulnRes.rows[0].count, 10);
+    const status = vuln_count > 0 ? 'vulnerable' : 'upToDate';
+
     const { rows } = await pool.query(
       `UPDATE devices SET status=$1, vuln_count=$2, last_check=CURRENT_DATE, updated_at=NOW()
        WHERE id=$3 RETURNING *`,
       [status, vuln_count, id]
     );
-    if (!rows[0]) return res.status(404).json({ error: 'Device not found' });
     res.json(rows[0]);
   } catch (err) {
     next(err);

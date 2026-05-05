@@ -2,7 +2,6 @@ import { useState } from 'react';
 import { TOKENS, ROLES } from '../styles/tokens';
 import { useLang } from '../contexts/LangContext';
 import { useAuth } from '../contexts/AuthContext';
-import { RoleBadge } from '../components/ui';
 
 export function LoginPage() {
   const { lang } = useLang();
@@ -25,12 +24,6 @@ export function LoginPage() {
       setLoading(false);
     }
   };
-
-  const demoAccounts = [
-    { role: 'superadmin', username: 'superadmin', password: 'admin1234' },
-    { role: 'admin',      username: 'alice',      password: 'alice1234' },
-    { role: 'user',       username: 'bob',        password: 'bob12345'  },
-  ];
 
   return (
     <div style={{ minHeight: '100vh', background: TOKENS.bg, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24, position: 'relative', overflow: 'hidden' }}>
@@ -76,23 +69,6 @@ export function LoginPage() {
           </form>
         </div>
 
-        <div style={{ background: TOKENS.bgCard, border: `1px solid ${TOKENS.border}`, borderRadius: TOKENS.radiusLg, padding: 20 }}>
-          <div style={{ fontSize: 12, color: TOKENS.textMuted, marginBottom: 12, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em' }}>{lang === 'zh' ? '測試帳號（點擊自動填入）' : 'Demo Accounts (click to fill)'}</div>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-            {demoAccounts.map(a => (
-              <button key={a.username} onClick={() => { setUsername(a.username); setPassword(a.password); setError(''); }}
-                style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 12px', background: TOKENS.bgInput, border: `1px solid ${TOKENS.border}`, borderRadius: TOKENS.radiusSm, cursor: 'pointer', fontFamily: TOKENS.font }}
-                onMouseEnter={e => e.currentTarget.style.borderColor = TOKENS.borderFocus}
-                onMouseLeave={e => e.currentTarget.style.borderColor = TOKENS.border}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                  <RoleBadge role={a.role} />
-                  <span style={{ fontSize: 13, color: TOKENS.text, fontFamily: TOKENS.mono }}>{a.username}</span>
-                </div>
-                <span style={{ fontSize: 11, color: TOKENS.textMuted, fontFamily: TOKENS.mono }}>{a.password}</span>
-              </button>
-            ))}
-          </div>
-        </div>
       </div>
     </div>
   );

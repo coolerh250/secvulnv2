@@ -52,17 +52,27 @@ export function SettingsPage() {
 
   const handleTest = async (src) => {
     setTestingId(src.id); setTestResult(prev => ({ ...prev, [src.id]: null }));
-    await new Promise(r => setTimeout(r, 1800));
-    setTestResult(prev => ({ ...prev, [src.id]: src.enabled && src.url.startsWith('http') ? 'ok' : 'fail' }));
-    setTestingId(null);
+    try {
+      await fetch(`/api/settings/sources/${src.id}/test`, { method: 'POST', headers: { Authorization: `Bearer ${localStorage.getItem('token')}` } });
+      setTestResult(prev => ({ ...prev, [src.id]: 'ok' }));
+    } catch {
+      setTestResult(prev => ({ ...prev, [src.id]: 'fail' }));
+    } finally {
+      setTestingId(null);
+    }
   };
 
   const handleSync = async (src) => {
     setSyncingId(src.id);
-    await new Promise(r => setTimeout(r, 2200));
-    const now = new Date().toISOString().slice(0, 16).replace('T', ' ');
-    updateSource(src.id, { lastSync: now, syncStatus: 'ok' });
-    setSyncingId(null);
+    try {
+      await fetch(`/api/settings/sources/${src.id}/sync`, { method: 'POST', headers: { Authorization: `Bearer ${localStorage.getItem('token')}` } });
+      const now = new Date().toISOString().slice(0, 16).replace('T', ' ');
+      updateSource(src.id, { lastSync: now, syncStatus: 'ok' });
+    } catch {
+      updateSource(src.id, { syncStatus: 'fail' });
+    } finally {
+      setSyncingId(null);
+    }
   };
 
   const handleAddSrc = () => {
