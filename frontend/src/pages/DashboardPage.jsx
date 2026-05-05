@@ -14,10 +14,12 @@ export function DashboardPage({ onNavigate }) {
   const [expanded, setExpanded] = useState(null);
   const [expandVulns, setExpandVulns] = useState([]);
   const [detailVuln, setDetailVuln]   = useState(null);
-  const [loading,  setLoading]  = useState(true);
+  const [loading,    setLoading]    = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
 
-  useEffect(() => {
-    Promise.all([
+  const loadData = (isRefresh = false) => {
+    if (isRefresh) setRefreshing(true); else setLoading(true);
+    return Promise.all([
       dashboardApi.stats(),
       dashboardApi.trend(),
       dashboardApi.reviews(),
@@ -30,8 +32,10 @@ export function DashboardPage({ onNavigate }) {
         daysLeft: Math.ceil((new Date(v.review_date) - new Date()) / 86400000),
       })));
       setTopVulns([...vl.data].sort((a, b) => b.cvss - a.cvss).slice(0, 5));
-    }).finally(() => setLoading(false));
-  }, []);
+    }).finally(() => { setLoading(false); setRefreshing(false); });
+  };
+
+  useEffect(() => { loadData(); }, []);
 
   const loadExpanded = async (filter) => {
     const params = {};
@@ -91,6 +95,19 @@ export function DashboardPage({ onNavigate }) {
 
   return (
     <div style={{ padding: 28, display: 'flex', flexDirection: 'column', gap: 24 }}>
+      {/* Header */}
+      <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+        <button onClick={() => loadData(true)} disabled={refreshing}
+          style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 14px', background: 'none', border: `1px solid ${TOKENS.border}`, borderRadius: TOKENS.radiusSm, color: refreshing ? TOKENS.textMuted : TOKENS.textSecondary, cursor: refreshing ? 'default' : 'pointer', fontSize: 12, fontFamily: TOKENS.font }}
+          onMouseEnter={e => { if (!refreshing) e.currentTarget.style.borderColor = TOKENS.primary; e.currentTarget.style.color = TOKENS.primary; }}
+          onMouseLeave={e => { e.currentTarget.style.borderColor = TOKENS.border; e.currentTarget.style.color = TOKENS.textSecondary; }}>
+          <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.8"
+            style={{ animation: refreshing ? 'spin 0.8s linear infinite' : 'none' }}>
+            <path d="M13.5 8A5.5 5.5 0 1 1 8 2.5c1.8 0 3.4.86 4.4 2.2M13.5 2v3.5H10"/>
+          </svg>
+          {refreshing ? (lang === 'zh' ? '更新中...' : 'Refreshing...') : (lang === 'zh' ? '重新整理' : 'Refresh')}
+        </button>
+      </div>
       {/* Stat Cards */}
       <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 16 }}>

@@ -32,6 +32,7 @@ export const vulnApi = {
   updateStatus:      (id, status)  => api.put(`/vulnerabilities/${id}/status`, { handle_status: status }),
   addNote:           (id, text)    => api.post(`/vulnerabilities/${id}/notes`, { text }),
   setRiskAcceptance: (id, data)    => api.post(`/vulnerabilities/${id}/risk-acceptance`, data),
+  remove:            (id)          => api.delete(`/vulnerabilities/${id}`),
 };
 
 // Dashboard
@@ -43,11 +44,12 @@ export const dashboardApi = {
 
 // Devices
 export const deviceApi = {
-  list:   ()          => api.get('/devices'),
-  create: (data)      => api.post('/devices', data),
-  update: (id, data)  => api.put(`/devices/${id}`, data),
-  remove: (id)        => api.delete(`/devices/${id}`),
-  scan:   (id)        => api.post(`/devices/${id}/scan`),
+  list:    ()          => api.get('/devices'),
+  create:  (data)      => api.post('/devices', data),
+  update:  (id, data)  => api.put(`/devices/${id}`, data),
+  remove:  (id)        => api.delete(`/devices/${id}`),
+  scan:    (id)        => api.post(`/devices/${id}/scan`),
+  scanAll: ()          => api.post('/devices/scan-all'),
 };
 
 // Users

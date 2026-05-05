@@ -78,4 +78,28 @@ async function scan(req, res, next) {
   }
 }
 
-module.exports = { list, create, update, remove, scan };
+async function scanAll(req, res, next) {
+  try {
+    const { rows: devices } = await pool.query('SELECT * FROM devices');
+    if (devices.length === 0) return res.json({ updated: 0, devices: [] });
+    const updated = [];
+    for (const device of devices) {
+      const vulnRes = await pool.query(
+        `SELECT COUNT(*) FROM vulnerabilities WHERE vendor = $1 AND handle_status NOT IN ('fixed')`,
+        [device.vendor]
+      );
+      const vuln_count = parseInt(vulnRes.rows[0].count, 10);
+      const status = vuln_count > 0 ? 'vulnerable' : 'upToDate';
+      const { rows } = await pool.query(
+        `UPDATE devices SET status=$1, vuln_count=$2, last_check=CURRENT_DATE, updated_at=NOW() WHERE id=$3 RETURNING *`,
+        [status, vuln_count, device.id]
+      );
+      updated.push(rows[0]);
+    }
+    res.json({ updated: updated.length, devices: updated });
+  } catch (err) {
+    next(err);
+  }
+}
+
+module.exports = { list, create, update, remove, scan, scanAll };

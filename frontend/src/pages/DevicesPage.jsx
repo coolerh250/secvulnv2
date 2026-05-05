@@ -46,7 +46,8 @@ export function DevicesPage() {
   const [loading, setLoading] = useState(true);
   const [showAdd, setShowAdd] = useState(false);
   const [editId,  setEditId]  = useState(null);
-  const [scanning, setScanning] = useState(null);
+  const [scanning,    setScanning]    = useState(null);
+  const [scanningAll, setScanningAll] = useState(false);
   const [form, setForm] = useState({ name: '', vendor: 'Fortinet', model: '', firmware: '' });
 
   useEffect(() => {
@@ -75,6 +76,16 @@ export function DevicesPage() {
     setDevices(prev => prev.filter(d => d.id !== id));
   };
 
+  const handleScanAll = async () => {
+    setScanningAll(true);
+    try {
+      const res = await deviceApi.scanAll();
+      setDevices(res.data.devices);
+    } finally {
+      setScanningAll(false);
+    }
+  };
+
   const handleScan = async (id) => {
     setScanning(id);
     try {
@@ -96,9 +107,14 @@ export function DevicesPage() {
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <div style={{ fontSize: 16, fontWeight: 600, color: TOKENS.text }}>{t(lang, 'deviceList')} <span style={{ fontSize: 13, fontWeight: 400, color: TOKENS.textMuted }}>({devices.length})</span></div>
         {canModify && (
-          <Btn variant="primary" icon={Icons.plus} onClick={() => { setShowAdd(true); setEditId(null); setForm({ name: '', vendor: 'Fortinet', model: '', firmware: '' }); }}>
-            {t(lang, 'addDevice')}
-          </Btn>
+          <div style={{ display: 'flex', gap: 8 }}>
+            <Btn icon={Icons.refresh} onClick={handleScanAll} disabled={scanningAll}>
+              {scanningAll ? (lang === 'zh' ? '掃描中...' : 'Scanning...') : (lang === 'zh' ? '重新比對所有設備' : 'Re-scan All')}
+            </Btn>
+            <Btn variant="primary" icon={Icons.plus} onClick={() => { setShowAdd(true); setEditId(null); setForm({ name: '', vendor: 'Fortinet', model: '', firmware: '' }); }}>
+              {t(lang, 'addDevice')}
+            </Btn>
+          </div>
         )}
       </div>
 

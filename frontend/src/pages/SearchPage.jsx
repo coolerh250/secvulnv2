@@ -26,10 +26,12 @@ export function SearchPage({ preset, onPresetConsumed }) {
   const [aiLoading,    setAiLoading]    = useState(false);
   const [sortBy,       setSortBy]       = useState('cvss');
   const [sortDir,      setSortDir]      = useState('desc');
-  const [showAcceptModal, setShowAcceptModal] = useState(false);
-  const [showNoteInput,   setShowNoteInput]   = useState(false);
-  const [noteText,        setNoteText]        = useState('');
-  const [presetToast,     setPresetToast]     = useState(null);
+  const [showAcceptModal,   setShowAcceptModal]   = useState(false);
+  const [showNoteInput,     setShowNoteInput]     = useState(false);
+  const [noteText,          setNoteText]          = useState('');
+  const [presetToast,       setPresetToast]       = useState(null);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [deleting,          setDeleting]          = useState(false);
 
   const canModify = can('search', 'modify');
 
@@ -96,6 +98,19 @@ export function SearchPage({ preset, onPresetConsumed }) {
   const handleSetStatus = async (vulnId, status) => {
     await vulnApi.updateStatus(vulnId, status);
     updateLocal(vulnId, { handle_status: status });
+  };
+
+  const handleDelete = async () => {
+    if (!selected) return;
+    setDeleting(true);
+    try {
+      await vulnApi.remove(selected.id);
+      setResults(prev => prev.filter(v => v.id !== selected.id));
+      setSelected(null);
+      setShowDeleteConfirm(false);
+    } finally {
+      setDeleting(false);
+    }
   };
 
   const handleAddNote = async () => {
@@ -205,7 +220,7 @@ export function SearchPage({ preset, onPresetConsumed }) {
         ) : sorted.length === 0 ? (
           <div style={{ padding: 40, textAlign: 'center', color: TOKENS.textMuted }}>{t(lang, 'noResults')}</div>
         ) : sorted.map(v => (
-          <div key={v.id} onClick={() => { setSelected(v); setAiResult(null); setShowAcceptModal(false); setShowNoteInput(false); }}
+          <div key={v.id} onClick={() => { setSelected(v); setAiResult(null); setShowAcceptModal(false); setShowNoteInput(false); setShowDeleteConfirm(false); }}
             style={{ display: 'grid', gridTemplateColumns: '130px 1fr 100px 90px 80px 90px 90px', padding: '12px 16px', borderBottom: `1px solid ${TOKENS.border}`, cursor: 'pointer', alignItems: 'center' }}
             onMouseEnter={e => e.currentTarget.style.background = 'rgba(255,255,255,0.03)'}
             onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
@@ -283,7 +298,23 @@ export function SearchPage({ preset, onPresetConsumed }) {
                     {selected.handle_status !== 'pending' && (
                       <Btn variant="ghost" onClick={() => handleSetStatus(selected.id, 'pending')}>{lang === 'zh' ? '重設為待處理' : 'Reset to Pending'}</Btn>
                     )}
+                    <Btn icon={Icons.trash} onClick={() => setShowDeleteConfirm(true)} style={{ marginLeft: 'auto', color: TOKENS.danger, background: TOKENS.dangerDim, border: `1px solid ${TOKENS.danger}40` }}>
+                      {lang === 'zh' ? '刪除此弱點' : 'Delete Vulnerability'}
+                    </Btn>
                   </div>
+                  {showDeleteConfirm && (
+                    <div style={{ marginTop: 12, padding: 14, background: TOKENS.dangerDim, borderRadius: TOKENS.radiusSm, border: `1px solid ${TOKENS.danger}50` }}>
+                      <div style={{ fontSize: 13, color: TOKENS.danger, fontWeight: 600, marginBottom: 10 }}>
+                        {lang === 'zh' ? `⚠ 確認要永久刪除 ${selected.id}？此操作無法復原。` : `⚠ Permanently delete ${selected.id}? This cannot be undone.`}
+                      </div>
+                      <div style={{ display: 'flex', gap: 8 }}>
+                        <Btn onClick={() => setShowDeleteConfirm(false)} disabled={deleting}>{lang === 'zh' ? '取消' : 'Cancel'}</Btn>
+                        <Btn onClick={handleDelete} disabled={deleting} style={{ background: TOKENS.danger, color: '#fff', border: 'none' }}>
+                          {deleting ? (lang === 'zh' ? '刪除中...' : 'Deleting...') : (lang === 'zh' ? '確認刪除' : 'Confirm Delete')}
+                        </Btn>
+                      </div>
+                    </div>
+                  )}
                 </div>
               ) : (
                 <div style={{ padding: 12, background: TOKENS.bg, borderRadius: TOKENS.radius, border: `1px solid ${TOKENS.border}`, display: 'flex', alignItems: 'center', gap: 8, fontSize: 12, color: TOKENS.textMuted }}>
