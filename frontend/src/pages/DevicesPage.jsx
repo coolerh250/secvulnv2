@@ -6,6 +6,23 @@ import { deviceApi } from '../services/api';
 import { Card, Btn, InputField, SelectField } from '../components/ui';
 import { Icons } from '../components/Icons';
 
+function DeviceForm({ form, setForm, lang, onSave, onCancel }) {
+  return (
+    <Card style={{ marginBottom: 16 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12, marginBottom: 12 }}>
+        <InputField label={t(lang, 'deviceName')} value={form.name} onChange={v => setForm({ ...form, name: v })} placeholder={lang === 'zh' ? '例：總部防火牆' : 'e.g. HQ Firewall'} />
+        <SelectField label={t(lang, 'vendor')} value={form.vendor} onChange={v => setForm({ ...form, vendor: v })} options={[{ value: 'Fortinet', label: 'Fortinet' }, { value: 'Palo Alto', label: 'Palo Alto' }]} />
+        <InputField label={t(lang, 'model')}       value={form.model}    onChange={v => setForm({ ...form, model: v })}    placeholder="e.g. FortiGate 60F" />
+        <InputField label={t(lang, 'firmwareVer')} value={form.firmware} onChange={v => setForm({ ...form, firmware: v })} placeholder="e.g. 7.0.14" />
+      </div>
+      <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+        <Btn onClick={onCancel}>{t(lang, 'cancel')}</Btn>
+        <Btn variant="primary" onClick={onSave} disabled={!form.name || !form.model || !form.firmware}>{t(lang, 'save')}</Btn>
+      </div>
+    </Card>
+  );
+}
+
 const STATUS_MAP = {
   vulnerable:  { color: '#f04040', bg: 'rgba(240,64,64,0.12)',  labelZh: '存在弱點',    labelEn: 'Vulnerable' },
   upToDate:    { color: '#50b080', bg: 'rgba(80,176,128,0.12)', labelZh: '已是最新',    labelEn: 'Up to Date' },
@@ -68,21 +85,6 @@ export function DevicesPage() {
     }
   };
 
-  const DeviceForm = ({ onSave, onCancel }) => (
-    <Card style={{ marginBottom: 16 }}>
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12, marginBottom: 12 }}>
-        <InputField label={t(lang, 'deviceName')} value={form.name} onChange={v => setForm({ ...form, name: v })} placeholder={lang === 'zh' ? '例：總部防火牆' : 'e.g. HQ Firewall'} />
-        <SelectField label={t(lang, 'vendor')} value={form.vendor} onChange={v => setForm({ ...form, vendor: v })} options={[{ value: 'Fortinet', label: 'Fortinet' }, { value: 'Palo Alto', label: 'Palo Alto' }]} />
-        <InputField label={t(lang, 'model')}       value={form.model}    onChange={v => setForm({ ...form, model: v })}    placeholder="e.g. FortiGate 60F" />
-        <InputField label={t(lang, 'firmwareVer')} value={form.firmware} onChange={v => setForm({ ...form, firmware: v })} placeholder="e.g. 7.0.14" />
-      </div>
-      <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
-        <Btn onClick={onCancel}>{t(lang, 'cancel')}</Btn>
-        <Btn variant="primary" onClick={onSave} disabled={!form.name || !form.model || !form.firmware}>{t(lang, 'save')}</Btn>
-      </div>
-    </Card>
-  );
-
   if (loading) return (
     <div style={{ padding: 28, display: 'flex', alignItems: 'center', justifyContent: 'center', height: '60vh' }}>
       <div style={{ width: 32, height: 32, border: `3px solid ${TOKENS.border}`, borderTop: `3px solid ${TOKENS.primary}`, borderRadius: '50%', animation: 'spin 0.8s linear infinite' }} />
@@ -100,8 +102,8 @@ export function DevicesPage() {
         )}
       </div>
 
-      {showAdd  && <DeviceForm onSave={handleAdd}      onCancel={() => setShowAdd(false)} />}
-      {editId   && <DeviceForm onSave={handleSaveEdit} onCancel={() => setEditId(null)}  />}
+      {showAdd  && <DeviceForm form={form} setForm={setForm} lang={lang} onSave={handleAdd}      onCancel={() => setShowAdd(false)} />}
+      {editId   && <DeviceForm form={form} setForm={setForm} lang={lang} onSave={handleSaveEdit} onCancel={() => setEditId(null)}  />}
 
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12 }}>
         {[{ label: lang === 'zh' ? '存在弱點' : 'Vulnerable',       count: devices.filter(d => d.status === 'vulnerable').length,  color: TOKENS.danger },
