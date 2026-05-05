@@ -40,7 +40,7 @@ function AppShell() {
     switch (page) {
       case 'dashboard': return <DashboardPage onNavigate={navigateTo} />;
       case 'search':    return <SearchPage preset={searchPreset} onPresetConsumed={() => setSearchPreset(null)} />;
-      case 'devices':   return <DevicesPage />;
+      case 'devices':   return <DevicesPage onNavigate={navigateTo} />;
       case 'users':     return <UsersPage />;
       case 'settings':  return <SettingsPage onNavigate={navigateTo} />;
       default:          return <DashboardPage onNavigate={navigateTo} />;
