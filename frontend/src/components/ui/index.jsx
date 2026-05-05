@@ -102,12 +102,16 @@ export function MiniBarChart({ data, keys, colors, height = 160 }) {
   if (!data || data.length === 0) {
     return <div style={{ height, display: 'flex', alignItems: 'center', justifyContent: 'center', color: TOKENS.textMuted, fontSize: 13 }}>—</div>;
   }
-  const maxVal = Math.max(1, ...data.map(d => keys.reduce((s, k) => s + (d[k] || 0), 0)));
-  const gap  = 4;
-  const barW = Math.max(10, Math.floor((320 - (data.length - 1) * gap) / data.length));
-  const vbW  = data.length * barW + (data.length - 1) * gap;
+  const maxVal    = Math.max(1, ...data.map(d => keys.reduce((s, k) => s + (d[k] || 0), 0)));
+  const gap       = 4;
+  const barW      = Math.max(10, Math.floor((320 - (data.length - 1) * gap) / data.length));
+  const vbW       = data.length * barW + (data.length - 1) * gap;
+  // Rotate labels when bar is narrower than the label text (≈7 viewBox units per char)
+  const labelLen  = Math.max(3, ...data.map(d => (d.month || '').length));
+  const rotate    = barW < labelLen * 7;
+  const labelArea = rotate ? 40 : 22;
   return (
-    <svg width="100%" viewBox={`0 0 ${vbW} ${height + 24}`} style={{ display: 'block' }}>
+    <svg width="100%" viewBox={`0 0 ${vbW} ${height + labelArea}`} style={{ display: 'block' }}>
       {data.map((d, i) => {
         let y = height;
         return (
@@ -117,7 +121,17 @@ export function MiniBarChart({ data, keys, colors, height = 160 }) {
               y -= h;
               return <rect key={k} x="0" y={y} width={barW} height={h} rx="2" fill={colors[ki]} opacity="0.85" />;
             })}
-            <text x={barW / 2} y={height + 16} textAnchor="middle" fontSize={barW < 16 ? '8' : '10'} fill={TOKENS.textMuted} fontFamily={TOKENS.font}>{d.month}</text>
+            {rotate ? (
+              <text
+                transform={`translate(${barW / 2 + 1}, ${height + 4}) rotate(-45)`}
+                textAnchor="end" fontSize="9" fill={TOKENS.textMuted} fontFamily={TOKENS.font}>
+                {d.month}
+              </text>
+            ) : (
+              <text x={barW / 2} y={height + 16} textAnchor="middle" fontSize="10" fill={TOKENS.textMuted} fontFamily={TOKENS.font}>
+                {d.month}
+              </text>
+            )}
           </g>
         );
       })}
