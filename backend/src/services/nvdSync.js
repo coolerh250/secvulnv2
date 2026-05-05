@@ -13,8 +13,9 @@ const SOURCE_MAP = {
 // ---------------------------------------------------------------------------
 
 function nvdRequest(params, apiKey) {
+  // NVD requires literal colons in date strings — do NOT use encodeURIComponent on values
   const qs = Object.entries(params)
-    .map(([k, v]) => `${encodeURIComponent(k)}=${encodeURIComponent(v)}`)
+    .map(([k, v]) => `${k}=${String(v).replace(/ /g, '%20')}`)
     .join('&');
 
   return new Promise((resolve, reject) => {
@@ -180,10 +181,14 @@ async function syncVendor(keyword, vendor, apiKey, sinceDate) {
   // NVD rate limits: 50 req/30s with key, 5 req/30s without
   const delayMs = apiKey ? 700 : 6200;
 
-  // Default: last 2 years if no previous sync date
-  const fromDate = sinceDate && sinceDate !== '—'
-    ? new Date(sinceDate).toISOString().slice(0, 23)
-    : new Date(Date.now() - 2 * 365 * 86400000).toISOString().slice(0, 23);
+  // Use sinceDate only if it's a real past sync (more than 7 days ago).
+  // Seed data contains fake future/recent timestamps — treat those as first-run.
+  const TWO_YEARS_AGO = Date.now() - 2 * 365 * 86400000;
+  const SEVEN_DAYS_AGO = Date.now() - 7 * 86400000;
+  const sinceParsed = sinceDate && sinceDate !== '—' ? new Date(sinceDate).getTime() : 0;
+  const useIncremental = sinceParsed > 0 && sinceParsed < SEVEN_DAYS_AGO;
+  const fromDate = (useIncremental ? new Date(sinceParsed) : new Date(TWO_YEARS_AGO))
+    .toISOString().slice(0, 23);
 
   let startIndex   = 0;
   let totalResults = null;
