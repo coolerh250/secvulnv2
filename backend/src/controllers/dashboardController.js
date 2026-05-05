@@ -42,6 +42,7 @@ async function trend(req, res, next) {
     );
     res.json(rows.map(r => ({
       month:    r.month,
+      year:     r.year,
       critical: r.critical_count,
       high:     r.high_count,
       medium:   r.medium_count,

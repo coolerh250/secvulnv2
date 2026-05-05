@@ -99,20 +99,25 @@ export function RoleBadge({ role }) {
 }
 
 export function MiniBarChart({ data, keys, colors, height = 160 }) {
-  const maxVal = Math.max(...data.map(d => keys.reduce((s, k) => s + (d[k] || 0), 0)));
-  const barW   = Math.floor((320 - (data.length - 1) * 6) / data.length);
+  if (!data || data.length === 0) {
+    return <div style={{ height, display: 'flex', alignItems: 'center', justifyContent: 'center', color: TOKENS.textMuted, fontSize: 13 }}>—</div>;
+  }
+  const maxVal = Math.max(1, ...data.map(d => keys.reduce((s, k) => s + (d[k] || 0), 0)));
+  const gap  = 4;
+  const barW = Math.max(10, Math.floor((320 - (data.length - 1) * gap) / data.length));
+  const vbW  = data.length * barW + (data.length - 1) * gap;
   return (
-    <svg width="100%" viewBox={`0 0 320 ${height + 24}`} style={{ display: 'block' }}>
+    <svg width="100%" viewBox={`0 0 ${vbW} ${height + 24}`} style={{ display: 'block' }}>
       {data.map((d, i) => {
         let y = height;
         return (
-          <g key={i} transform={`translate(${i * (barW + 6)}, 0)`}>
+          <g key={i} transform={`translate(${i * (barW + gap)}, 0)`}>
             {keys.map((k, ki) => {
-              const h = maxVal > 0 ? ((d[k] || 0) / maxVal) * height : 0;
+              const h = ((d[k] || 0) / maxVal) * height;
               y -= h;
               return <rect key={k} x="0" y={y} width={barW} height={h} rx="2" fill={colors[ki]} opacity="0.85" />;
             })}
-            <text x={barW / 2} y={height + 16} textAnchor="middle" fontSize="10" fill={TOKENS.textMuted} fontFamily={TOKENS.font}>{d.month}</text>
+            <text x={barW / 2} y={height + 16} textAnchor="middle" fontSize={barW < 16 ? '8' : '10'} fill={TOKENS.textMuted} fontFamily={TOKENS.font}>{d.month}</text>
           </g>
         );
       })}

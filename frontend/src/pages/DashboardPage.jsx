@@ -5,6 +5,17 @@ import { dashboardApi, vulnApi } from '../services/api';
 import { Card, Badge, CvssBar, VulnStatusBadge, MiniBarChart, DonutChart } from '../components/ui';
 import { Icons } from '../components/Icons';
 
+const MONTH_NUM = { Jan:1,Feb:2,Mar:3,Apr:4,May:5,Jun:6,Jul:7,Aug:8,Sep:9,Oct:10,Nov:11,Dec:12 };
+
+const RANGE_OPTS = [
+  { key: '1m', zh: '1個月', en: '1M' },
+  { key: '6m', zh: '半年',  en: '6M' },
+  { key: '1y', zh: '1年',   en: '1Y' },
+  { key: 'custom', zh: '自訂', en: 'Custom' },
+];
+
+function toYM(year, monthStr) { return year * 100 + (MONTH_NUM[monthStr] || 0); }
+
 export function DashboardPage({ onNavigate }) {
   const { lang } = useLang();
   const [stats,    setStats]    = useState(null);
@@ -16,6 +27,16 @@ export function DashboardPage({ onNavigate }) {
   const [detailVuln, setDetailVuln]   = useState(null);
   const [loading,    setLoading]    = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+
+  const [trendRange,  setTrendRange]  = useState('1y');
+  const nowD = new Date();
+  const [customFrom, setCustomFrom] = useState(() => {
+    const d = new Date(nowD.getFullYear(), nowD.getMonth() - 5, 1);
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+  });
+  const [customTo, setCustomTo] = useState(() =>
+    `${nowD.getFullYear()}-${String(nowD.getMonth() + 1).padStart(2, '0')}`
+  );
 
   const loadData = (isRefresh = false) => {
     if (isRefresh) setRefreshing(true); else setLoading(true);
@@ -63,6 +84,24 @@ export function DashboardPage({ onNavigate }) {
       </div>
     </div>
   );
+
+  const getFilteredTrend = () => {
+    if (!trend.length) return [];
+    let from, to;
+    if (trendRange === 'custom') {
+      from = customFrom ? parseInt(customFrom.replace('-', '')) : 0;
+      to   = customTo   ? parseInt(customTo.replace('-', ''))   : 999999;
+    } else {
+      const months = { '1m': 0, '6m': 5, '1y': 11 }[trendRange] ?? 11;
+      const cutoff = new Date(nowD.getFullYear(), nowD.getMonth() - months, 1);
+      from = cutoff.getFullYear() * 100 + (cutoff.getMonth() + 1);
+      to   = nowD.getFullYear() * 100 + (nowD.getMonth() + 1);
+    }
+    const filtered = trend.filter(d => { const ym = toYM(d.year, d.month); return ym >= from && ym <= to; });
+    const years = new Set(filtered.map(d => d.year));
+    return filtered.map(d => ({ ...d, month: years.size > 1 ? `${d.month}'${String(d.year).slice(2)}` : d.month }));
+  };
+  const filteredTrend = getFilteredTrend();
 
   const severity  = stats?.severity  || {};
   const status    = stats?.status    || {};
@@ -241,8 +280,36 @@ export function DashboardPage({ onNavigate }) {
       {/* Charts Row */}
       <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: 16 }}>
         <Card>
-          <div style={{ fontSize: 14, fontWeight: 600, color: TOKENS.text, marginBottom: 16 }}>{t(lang, 'vulnTrend')}</div>
-          <MiniBarChart data={trend} keys={['critical','high','medium','low']} colors={[TOKENS.danger, TOKENS.warning, TOKENS.medium, TOKENS.low]} height={140} />
+          {/* Header + range selector */}
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+            <div style={{ fontSize: 14, fontWeight: 600, color: TOKENS.text }}>{t(lang, 'vulnTrend')}</div>
+            <div style={{ display: 'flex', gap: 4 }}>
+              {RANGE_OPTS.map(r => (
+                <button key={r.key} onClick={() => setTrendRange(r.key)}
+                  style={{ padding: '3px 10px', fontSize: 11, fontWeight: 600, border: `1px solid ${trendRange === r.key ? TOKENS.primary : TOKENS.border}`, borderRadius: 20, background: trendRange === r.key ? TOKENS.primaryDim : 'transparent', color: trendRange === r.key ? TOKENS.primary : TOKENS.textSecondary, cursor: 'pointer', fontFamily: TOKENS.font, transition: 'all 0.15s' }}>
+                  {lang === 'zh' ? r.zh : r.en}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Custom date pickers */}
+          {trendRange === 'custom' && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 14 }}>
+              <input type="month" value={customFrom} onChange={e => setCustomFrom(e.target.value)}
+                max={customTo || undefined}
+                style={{ padding: '5px 10px', background: TOKENS.bgInput, border: `1px solid ${TOKENS.border}`, borderRadius: TOKENS.radiusSm, color: TOKENS.text, fontSize: 12, fontFamily: TOKENS.font, outline: 'none', colorScheme: 'dark' }} />
+              <span style={{ fontSize: 13, color: TOKENS.textMuted }}>–</span>
+              <input type="month" value={customTo} onChange={e => setCustomTo(e.target.value)}
+                min={customFrom || undefined}
+                style={{ padding: '5px 10px', background: TOKENS.bgInput, border: `1px solid ${TOKENS.border}`, borderRadius: TOKENS.radiusSm, color: TOKENS.text, fontSize: 12, fontFamily: TOKENS.font, outline: 'none', colorScheme: 'dark' }} />
+              <span style={{ fontSize: 11, color: TOKENS.textMuted, marginLeft: 4 }}>
+                {filteredTrend.length > 0 ? (lang === 'zh' ? `${filteredTrend.length} 個月` : `${filteredTrend.length} months`) : (lang === 'zh' ? '無資料' : 'No data')}
+              </span>
+            </div>
+          )}
+
+          <MiniBarChart data={filteredTrend} keys={['critical','high','medium','low']} colors={[TOKENS.danger, TOKENS.warning, TOKENS.medium, TOKENS.low]} height={140} />
           <div style={{ display: 'flex', gap: 16, marginTop: 12, justifyContent: 'center' }}>
             {[{ k: 'critical', l: 'Critical', lz: '嚴重', c: TOKENS.danger }, { k: 'high', l: 'High', lz: '高', c: TOKENS.warning }, { k: 'medium', l: 'Medium', lz: '中', c: TOKENS.medium }, { k: 'low', l: 'Low', lz: '低', c: TOKENS.low }].map(i => (
               <div key={i.k} style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 11, color: TOKENS.textSecondary }}>
