@@ -17,13 +17,26 @@ const DEVICE_TYPE_PRODUCTS = {
   'Panorama':      ['panorama', 'pan-os'],
 };
 
-function isProductMatch(deviceType, affectedProducts) {
+// affectedProducts: JSONB array from affected_products column (populated after NVD sync)
+// productText:      legacy product TEXT column, always populated (e.g. "Fortios, Fortianalyzer")
+function isProductMatch(deviceType, affectedProducts, productText) {
   if (!deviceType) return true;
   const expected = DEVICE_TYPE_PRODUCTS[deviceType];
   if (!expected) return true;
-  if (!affectedProducts || affectedProducts.length === 0) return true;
-  const ap = affectedProducts.map(p => String(p).toLowerCase());
-  return expected.some(e => ap.some(p => p === e || p.startsWith(e)));
+
+  // Prefer the structured affected_products array when available
+  if (affectedProducts && affectedProducts.length > 0) {
+    const ap = affectedProducts.map(p => String(p).toLowerCase());
+    return expected.some(e => ap.some(p => p === e || p.startsWith(e)));
+  }
+
+  // Fall back to the product text field (e.g. "Fortios, Fortianalyzer")
+  if (productText) {
+    const lower = productText.toLowerCase();
+    return expected.some(e => lower.includes(e));
+  }
+
+  return true; // no product data → conservative include
 }
 
 // ---------------------------------------------------------------------------
@@ -71,12 +84,12 @@ function affectsDevice(deviceFirmware, firmwareVersions) {
 
 async function countAffectedVulns(vendor, firmware, deviceType) {
   const { rows } = await pool.query(
-    `SELECT firmware_versions, affected_products FROM vulnerabilities
+    `SELECT firmware_versions, affected_products, product FROM vulnerabilities
      WHERE vendor = $1 AND handle_status NOT IN ('fixed')`,
     [vendor]
   );
   return rows.filter(r =>
-    isProductMatch(deviceType, r.affected_products) &&
+    isProductMatch(deviceType, r.affected_products, r.product) &&
     affectsDevice(firmware, r.firmware_versions)
   ).length;
 }

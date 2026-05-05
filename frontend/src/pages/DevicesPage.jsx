@@ -64,13 +64,19 @@ const DEVICE_TYPE_OPTIONS = {
   'Palo Alto': ['PA-Series', 'Panorama'],
 };
 
-function isProductMatch(deviceType, affectedProducts) {
+function isProductMatch(deviceType, affectedProducts, productText) {
   if (!deviceType) return true;
   const expected = DEVICE_TYPE_PRODUCTS[deviceType];
   if (!expected) return true;
-  if (!affectedProducts || affectedProducts.length === 0) return true;
-  const ap = affectedProducts.map(p => String(p).toLowerCase());
-  return expected.some(e => ap.some(p => p === e || p.startsWith(e)));
+  if (affectedProducts && affectedProducts.length > 0) {
+    const ap = affectedProducts.map(p => String(p).toLowerCase());
+    return expected.some(e => ap.some(p => p === e || p.startsWith(e)));
+  }
+  if (productText) {
+    const lower = productText.toLowerCase();
+    return expected.some(e => lower.includes(e));
+  }
+  return true;
 }
 
 // ---------------------------------------------------------------------------
@@ -199,7 +205,7 @@ export function DevicesPage({ onNavigate }) {
     try {
       const res = await vulnApi.list({ vendor: device.vendor });
       const filtered = res.data.filter(v =>
-        isProductMatch(device.device_type, v.affected_products) &&
+        isProductMatch(device.device_type, v.affected_products, v.product) &&
         affectsDevice(device.firmware, v.firmware_versions)
       );
       setDeviceVulns(prev => ({ ...prev, [device.id]: filtered }));
