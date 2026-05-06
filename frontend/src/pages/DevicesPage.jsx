@@ -367,25 +367,26 @@ export function DevicesPage({ onNavigate }) {
                         : (lang === 'zh' ? '此設備無匹配弱點' : 'No matching vulnerabilities for this device')}
                     </div>
                   ) : (
-                    vulns.slice(0, 10).map((v, i) => (
-                      <div key={v.id} onClick={() => setDeviceSelected({ vuln: v, device: d })}
-                        style={{ display: 'grid', gridTemplateColumns: '130px 1fr 90px 80px 90px', gap: 10, padding: '9px 16px', borderBottom: i < Math.min(vulns.length, 10) - 1 ? `1px solid ${TOKENS.border}` : 'none', cursor: 'pointer', alignItems: 'center' }}
-                        onMouseEnter={e => e.currentTarget.style.background = 'rgba(255,255,255,0.04)'}
-                        onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
-                        <span style={{ fontFamily: TOKENS.mono, fontSize: 12, fontWeight: 700, color: TOKENS.primary }}>{v.id}</span>
-                        <span style={{ fontSize: 12, color: TOKENS.text, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{lang === 'zh' ? v.title : v.title_en}</span>
-                        <Badge severity={v.severity} />
-                        <CvssBar score={Number(v.cvss)} />
-                        <VulnStatusBadge status={v.handle_status} />
-                      </div>
-                    ))
+                    <div style={{ maxHeight: 320, overflowY: 'auto' }}>
+                      {vulns.map((v, i) => (
+                        <div key={v.id} onClick={() => setDeviceSelected({ vuln: v, device: d })}
+                          style={{ display: 'grid', gridTemplateColumns: '130px 1fr 90px 80px 90px', gap: 10, padding: '9px 16px', borderBottom: i < vulns.length - 1 ? `1px solid ${TOKENS.border}` : 'none', cursor: 'pointer', alignItems: 'center' }}
+                          onMouseEnter={e => e.currentTarget.style.background = 'rgba(255,255,255,0.04)'}
+                          onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
+                          <span style={{ fontFamily: TOKENS.mono, fontSize: 12, fontWeight: 700, color: TOKENS.primary }}>{v.id}</span>
+                          <span style={{ fontSize: 12, color: TOKENS.text, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{lang === 'zh' ? v.title : v.title_en}</span>
+                          <Badge severity={v.severity} />
+                          <CvssBar score={Number(v.cvss)} />
+                          <VulnStatusBadge status={v.handle_status} />
+                        </div>
+                      ))}
+                    </div>
                   )}
 
                   {/* Footer */}
                   <div style={{ padding: '10px 16px', borderTop: `1px solid ${TOKENS.border}`, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                     <span style={{ fontSize: 12, color: TOKENS.textMuted }}>
                       {lang === 'zh' ? `共 ${vulns.length} 筆匹配弱點` : `${vulns.length} matching vulnerabilities`}
-                      {vulns.length > 10 ? (lang === 'zh' ? `，顯示前 10 筆` : `, showing first 10`) : ''}
                     </span>
                     {onNavigate && (
                       <button
