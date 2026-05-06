@@ -117,16 +117,21 @@ async function callLocal(baseURL, apiKey, model, system, user) {
   const client = new OpenAI({
     baseURL,
     apiKey: apiKey || 'local',   // Ollama ignores the key; vLLM may require one
+    timeout: 5 * 60 * 1000,      // 5-minute hard timeout for slow local models
   });
   const completion = await client.chat.completions.create({
     model,
-    max_tokens: 1500,
+    max_tokens: 8192,  // thinking/reasoning models consume tokens before producing content
     messages: [
       { role: 'system', content: system },
       { role: 'user',   content: user },
     ],
   });
-  return completion.choices[0]?.message?.content || '';
+  const msg = completion.choices[0]?.message;
+  // Reasoning models (e.g. Qwen3, DeepSeek-R1) put chain-of-thought in a
+  // separate `reasoning` field and the final answer in `content`.
+  // Fall back to `reasoning` so callers always get something useful.
+  return msg?.content || msg?.reasoning || '';
 }
 
 const PROVIDER_LABEL = {
@@ -205,8 +210,18 @@ async function analyzeVuln(req, res, next) {
           : 'Invalid AI API key. Please verify it in Settings.',
       });
     }
-    // Connection errors for local models
-    const isConnError = err.code === 'ECONNREFUSED' || err.code === 'ENOTFOUND' || err.cause?.code === 'ECONNREFUSED';
+    // Connection / timeout errors for local models
+    const isTimeoutError = err.name === 'APIConnectionTimeoutError'
+      || err.code === 'ETIMEDOUT' || err.cause?.code === 'ETIMEDOUT';
+    const isConnError = err.code === 'ECONNREFUSED' || err.code === 'ENOTFOUND'
+      || err.cause?.code === 'ECONNREFUSED';
+    if (isTimeoutError) {
+      return res.status(400).json({
+        error: req.body.lang === 'zh'
+          ? '本地模型回應超時（5 分鐘），請確認模型是否正常運行，或考慮使用較小的模型'
+          : 'Local model timed out (5 min). Verify the service is running or try a smaller model.',
+      });
+    }
     if (isConnError) {
       return res.status(400).json({
         error: req.body.lang === 'zh'

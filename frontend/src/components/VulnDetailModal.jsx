@@ -65,7 +65,8 @@ export function VulnDetailModal({ vuln, lang, onClose, onUpdate, onDelete, devic
     setAiMeta(null);
     try {
       const res = await aiApi.analyze(vuln, lang);
-      setAiResult(res.data.analysis);
+      const text = res.data.analysis;
+      setAiResult(text || (lang === 'zh' ? '## 無結果\n\n模型未回傳任何內容，請確認模型設定是否正確。' : '## No Result\n\nThe model returned no content. Please verify your model configuration.'));
       setAiMeta({ providerLabel: res.data.providerLabel, model: res.data.model });
     } catch (err) {
       const msg = err.response?.data?.error;
