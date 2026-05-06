@@ -354,7 +354,7 @@ export function DevicesPage({ onNavigate }) {
                     ))}
                   </div>
 
-                  {/* Vuln rows */}
+                  {/* Vuln rows — sorted by published date desc, scrollable, shows ~5 rows */}
                   {vulnsLoading && expandedId === d.id ? (
                     <div style={{ padding: '20px 16px', display: 'flex', alignItems: 'center', gap: 8, color: TOKENS.textMuted, fontSize: 13 }}>
                       <div style={{ width: 16, height: 16, border: `2px solid ${TOKENS.border}`, borderTop: `2px solid ${TOKENS.primary}`, borderRadius: '50%', animation: 'spin 0.8s linear infinite' }} />
@@ -367,26 +367,29 @@ export function DevicesPage({ onNavigate }) {
                         : (lang === 'zh' ? '此設備無匹配弱點' : 'No matching vulnerabilities for this device')}
                     </div>
                   ) : (
-                    <div style={{ maxHeight: 320, overflowY: 'auto' }}>
-                      {vulns.map((v, i) => (
-                        <div key={v.id} onClick={() => setDeviceSelected({ vuln: v, device: d })}
-                          style={{ display: 'grid', gridTemplateColumns: '130px 1fr 90px 80px 90px', gap: 10, padding: '9px 16px', borderBottom: i < vulns.length - 1 ? `1px solid ${TOKENS.border}` : 'none', cursor: 'pointer', alignItems: 'center' }}
-                          onMouseEnter={e => e.currentTarget.style.background = 'rgba(255,255,255,0.04)'}
-                          onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
-                          <span style={{ fontFamily: TOKENS.mono, fontSize: 12, fontWeight: 700, color: TOKENS.primary }}>{v.id}</span>
-                          <span style={{ fontSize: 12, color: TOKENS.text, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{lang === 'zh' ? v.title : v.title_en}</span>
-                          <Badge severity={v.severity} />
-                          <CvssBar score={Number(v.cvss)} />
-                          <VulnStatusBadge status={v.handle_status} />
-                        </div>
-                      ))}
+                    <div style={{ maxHeight: 200, overflowY: 'auto' }}>
+                      {[...vulns]
+                        .sort((a, b) => new Date(b.published || 0) - new Date(a.published || 0))
+                        .map((v, i, arr) => (
+                          <div key={v.id} onClick={() => setDeviceSelected({ vuln: v, device: d })}
+                            style={{ display: 'grid', gridTemplateColumns: '130px 1fr 90px 80px 90px', gap: 10, padding: '9px 16px', borderBottom: i < arr.length - 1 ? `1px solid ${TOKENS.border}` : 'none', cursor: 'pointer', alignItems: 'center' }}
+                            onMouseEnter={e => e.currentTarget.style.background = 'rgba(255,255,255,0.04)'}
+                            onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
+                            <span style={{ fontFamily: TOKENS.mono, fontSize: 12, fontWeight: 700, color: TOKENS.primary }}>{v.id}</span>
+                            <span style={{ fontSize: 12, color: TOKENS.text, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{lang === 'zh' ? v.title : v.title_en}</span>
+                            <Badge severity={v.severity} />
+                            <CvssBar score={Number(v.cvss)} />
+                            <VulnStatusBadge status={v.handle_status} />
+                          </div>
+                        ))
+                      }
                     </div>
                   )}
 
                   {/* Footer */}
                   <div style={{ padding: '10px 16px', borderTop: `1px solid ${TOKENS.border}`, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                     <span style={{ fontSize: 12, color: TOKENS.textMuted }}>
-                      {lang === 'zh' ? `共 ${vulns.length} 筆匹配弱點` : `${vulns.length} matching vulnerabilities`}
+                      {lang === 'zh' ? `共 ${vulns.length} 筆匹配弱點，依發現時間排序` : `${vulns.length} vulnerabilities · newest first`}
                     </span>
                     {onNavigate && (
                       <button
