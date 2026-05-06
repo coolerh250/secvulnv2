@@ -111,27 +111,66 @@ async function callGemini(apiKey, model, system, user) {
   return result.response.text();
 }
 
-const PROVIDER_LABEL = { claude: 'Claude (Anthropic)', gemini: 'Gemini (Google)', chatgpt: 'ChatGPT (OpenAI)', openai: 'OpenAI' };
-const DEFAULT_MODEL  = { claude: 'claude-sonnet-4-6', gemini: 'gemini-2.5-flash', chatgpt: 'gpt-4.1', openai: 'gpt-4.1' };
+// Ollama / vLLM / any OpenAI-compatible local endpoint
+async function callLocal(baseURL, apiKey, model, system, user) {
+  if (!baseURL) throw Object.assign(new Error('ai_base_url not configured'), { code: 'missing_base_url' });
+  const client = new OpenAI({
+    baseURL,
+    apiKey: apiKey || 'local',   // Ollama ignores the key; vLLM may require one
+  });
+  const completion = await client.chat.completions.create({
+    model,
+    max_tokens: 1500,
+    messages: [
+      { role: 'system', content: system },
+      { role: 'user',   content: user },
+    ],
+  });
+  return completion.choices[0]?.message?.content || '';
+}
+
+const PROVIDER_LABEL = {
+  claude:  'Claude (Anthropic)',
+  gemini:  'Gemini (Google)',
+  chatgpt: 'ChatGPT (OpenAI)',
+  local:   '本地模型',
+};
+const DEFAULT_MODEL = {
+  claude:  'claude-sonnet-4-6',
+  gemini:  'gemini-2.5-flash',
+  chatgpt: 'gpt-4.1',
+  local:   'llama3.2',
+};
 
 async function analyzeVuln(req, res, next) {
   try {
     const { vuln, lang = 'zh' } = req.body;
     if (!vuln?.id) return res.status(400).json({ error: 'Missing vuln data' });
 
-    const { rows } = await pool.query('SELECT ai_api_key, ai_model, ai_provider FROM settings WHERE id = 1');
+    const { rows } = await pool.query(
+      'SELECT ai_api_key, ai_model, ai_provider, ai_base_url FROM settings WHERE id = 1'
+    );
     const s = rows[0];
     const provider = s?.ai_provider || 'claude';
+    const isLocal = provider === 'local';
 
-    if (!s?.ai_api_key) {
+    // Local provider doesn't need an API key (Ollama); cloud providers do
+    if (!isLocal && !s?.ai_api_key) {
       return res.status(400).json({
         error: lang === 'zh'
           ? '尚未設定 AI API 金鑰，請至「設定」頁面完成設定'
           : 'AI API key not configured. Please configure it in Settings.',
       });
     }
+    if (isLocal && !s?.ai_base_url) {
+      return res.status(400).json({
+        error: lang === 'zh'
+          ? '尚未設定本地模型端點 URL，請至「設定」頁面填寫 API Base URL'
+          : 'Local model base URL not configured. Please set the API Base URL in Settings.',
+      });
+    }
 
-    const model = s.ai_model || DEFAULT_MODEL[provider] || 'claude-sonnet-4-6';
+    const model = s.ai_model || DEFAULT_MODEL[provider] || 'llama3.2';
     const { system, user } = buildPrompts(vuln, lang);
 
     let analysis;
@@ -139,12 +178,22 @@ async function analyzeVuln(req, res, next) {
       analysis = await callClaude(s.ai_api_key, model, system, user);
     } else if (provider === 'gemini') {
       analysis = await callGemini(s.ai_api_key, model, system, user);
+    } else if (provider === 'local') {
+      analysis = await callLocal(s.ai_base_url, s.ai_api_key, model, system, user);
     } else {
       analysis = await callOpenAI(s.ai_api_key, model, system, user);
     }
 
-    res.json({ analysis, provider, providerLabel: PROVIDER_LABEL[provider] || provider, model });
+    const baseLabel = PROVIDER_LABEL[provider] || provider;
+    const providerLabel = isLocal && s.ai_base_url
+      ? `${baseLabel} (${s.ai_base_url})`
+      : baseLabel;
+
+    res.json({ analysis, provider, providerLabel, model });
   } catch (err) {
+    if (err.code === 'missing_base_url') {
+      return res.status(400).json({ error: err.message });
+    }
     // Normalise auth errors across providers
     const isAuthError = err.status === 401 || err.status === 403
       || err.code === 'invalid_api_key'
@@ -154,6 +203,15 @@ async function analyzeVuln(req, res, next) {
         error: req.body.lang === 'zh'
           ? 'AI API 金鑰無效，請至設定頁面重新確認'
           : 'Invalid AI API key. Please verify it in Settings.',
+      });
+    }
+    // Connection errors for local models
+    const isConnError = err.code === 'ECONNREFUSED' || err.code === 'ENOTFOUND' || err.cause?.code === 'ECONNREFUSED';
+    if (isConnError) {
+      return res.status(400).json({
+        error: req.body.lang === 'zh'
+          ? `無法連線至本地模型端點，請確認服務是否正在執行（${err.message}）`
+          : `Cannot connect to local model endpoint. Please verify the service is running. (${err.message})`,
       });
     }
     next(err);

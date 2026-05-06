@@ -16,6 +16,7 @@ export function SettingsPage({ onNavigate }) {
   const [aiModel,      setAiModel]      = useState('claude-sonnet-4-6');
   const [authMethod,   setAuthMethod]   = useState('webauth');
   const [apiKey,       setApiKey]       = useState('');
+  const [aiBaseUrl,    setAiBaseUrl]    = useState('');
   const [emailNotif,   setEmailNotif]   = useState(true);
   const [webNotif,     setWebNotif]     = useState(true);
   const [notifThresh,  setNotifThresh]  = useState('HIGH');
@@ -36,6 +37,7 @@ export function SettingsPage({ onNavigate }) {
       if (d.ai_model)        setAiModel(d.ai_model);
       if (d.ai_auth_method)  setAuthMethod(d.ai_auth_method);
       if (d.ai_api_key)      setApiKey(d.ai_api_key || '');
+      if (d.ai_base_url)     setAiBaseUrl(d.ai_base_url || '');
       if (d.notif_email !== undefined) setEmailNotif(d.notif_email);
       if (d.notif_web   !== undefined) setWebNotif(d.notif_web);
       if (d.notif_threshold)   setNotifThresh(d.notif_threshold);
@@ -48,8 +50,13 @@ export function SettingsPage({ onNavigate }) {
     claude:  [{ value: 'claude-sonnet-4-6', label: 'Claude Sonnet 4.6' }, { value: 'claude-opus-4-7', label: 'Claude Opus 4.7' }, { value: 'claude-haiku-4-5-20251001', label: 'Claude Haiku 4.5' }],
     gemini:  [{ value: 'gemini-2.5-pro', label: 'Gemini 2.5 Pro' }, { value: 'gemini-2.5-flash', label: 'Gemini 2.5 Flash' }],
     chatgpt: [{ value: 'gpt-4.1', label: 'GPT-4.1' }, { value: 'gpt-4.1-mini', label: 'GPT-4.1 Mini' }, { value: 'o3', label: 'o3' }],
-    openai:  [{ value: 'gpt-4.1', label: 'GPT-4.1' }, { value: 'gpt-4.1-mini', label: 'GPT-4.1 Mini' }, { value: 'o3', label: 'o3' }],
+    local:   [],
   };
+
+  const LOCAL_PLATFORMS = [
+    { label: 'Ollama', url: 'http://localhost:11434/v1', model: 'llama3.2', hint: 'ollama run llama3.2' },
+    { label: 'vLLM',   url: 'http://localhost:8000/v1',  model: 'meta-llama/Llama-3.2-3B-Instruct', hint: 'vllm serve <model>' },
+  ];
 
   const updateSource = (id, updates) => setSources(prev => prev.map(s => s.id === id ? { ...s, ...updates } : s));
 
@@ -89,7 +96,7 @@ export function SettingsPage({ onNavigate }) {
   };
 
   const handleSave = async () => {
-    await settingsApi.update({ ai_provider: aiProvider, ai_model: aiModel, ai_auth_method: authMethod, ai_api_key: apiKey || null, notif_email: emailNotif, notif_web: webNotif, notif_threshold: notifThresh, notif_email_addr: email, data_sources: sources });
+    await settingsApi.update({ ai_provider: aiProvider, ai_model: aiModel, ai_auth_method: authMethod, ai_api_key: apiKey || null, ai_base_url: aiBaseUrl || null, notif_email: emailNotif, notif_web: webNotif, notif_threshold: notifThresh, notif_email_addr: email, data_sources: sources });
     setSaved(true); setTimeout(() => setSaved(false), 2000);
   };
 
@@ -127,31 +134,47 @@ export function SettingsPage({ onNavigate }) {
         <div style={{ fontSize: 15, fontWeight: 600, color: TOKENS.text, marginBottom: 16, display: 'flex', alignItems: 'center', gap: 8 }}>{Icons.ai}<span>{t(lang, 'aiProvider')}</span></div>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 10 }}>
-            {[{ value: 'claude', label: 'Claude (Anthropic)' }, { value: 'gemini', label: 'Gemini (Google)' }, { value: 'chatgpt', label: 'ChatGPT (OpenAI)' }, { value: 'openai', label: 'OpenAI API' }].map(p => (
-              <button key={p.value} onClick={() => { setAiProvider(p.value); setAuthMethod(p.value === 'claude' ? 'webauth' : 'apikey'); const m = providerModels[p.value]; if (m) setAiModel(m[0].value); }}
+            {[
+              { value: 'claude',  label: 'Claude',  sub: 'Anthropic' },
+              { value: 'gemini',  label: 'Gemini',  sub: 'Google' },
+              { value: 'chatgpt', label: 'ChatGPT', sub: 'OpenAI' },
+              { value: 'local',   label: lang === 'zh' ? '本地模型' : 'Local Model', sub: 'Ollama / vLLM' },
+            ].map(p => (
+              <button key={p.value} onClick={() => {
+                setAiProvider(p.value);
+                setAuthMethod(p.value === 'claude' ? 'webauth' : 'apikey');
+                const m = providerModels[p.value];
+                if (m?.length) setAiModel(m[0].value);
+                else if (p.value === 'local') setAiModel('llama3.2');
+              }}
                 style={{ padding: '14px 12px', background: aiProvider === p.value ? TOKENS.primaryDim : TOKENS.bgInput, border: `1px solid ${aiProvider === p.value ? TOKENS.primary : TOKENS.border}`, borderRadius: TOKENS.radius, cursor: 'pointer', textAlign: 'center' }}>
                 <div style={{ fontSize: 13, fontWeight: 600, color: aiProvider === p.value ? TOKENS.primary : TOKENS.text }}>{p.label}</div>
+                <div style={{ fontSize: 11, color: TOKENS.textMuted, marginTop: 3 }}>{p.sub}</div>
                 {aiProvider === p.value && <div style={{ width: 6, height: 6, borderRadius: '50%', background: TOKENS.primary, margin: '6px auto 0' }} />}
               </button>
             ))}
           </div>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-            <SelectField label={t(lang, 'aiModel')} value={aiModel} onChange={setAiModel} options={providerModels[aiProvider] || []} />
-            {aiProvider === 'claude' ? (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-                <label style={{ fontSize: 12, color: TOKENS.textSecondary, fontWeight: 500 }}>{t(lang, 'authMethod')}</label>
-                <div style={{ display: 'flex', gap: 8 }}>
-                  {[['webauth', t(lang, 'webAuth')], ['apikey', t(lang, 'apiKeyAuth')]].map(([m, ml]) => (
-                    <button key={m} onClick={() => setAuthMethod(m)} style={{ flex: 1, padding: '8px 12px', background: authMethod === m ? TOKENS.primaryDim : TOKENS.bgInput, border: `1px solid ${authMethod === m ? TOKENS.primary : TOKENS.border}`, borderRadius: TOKENS.radiusSm, color: authMethod === m ? TOKENS.primary : TOKENS.textSecondary, fontSize: 13, cursor: 'pointer', fontFamily: TOKENS.font }}>
-                      {ml}
-                    </button>
-                  ))}
+
+          {/* Cloud provider model + auth */}
+          {aiProvider !== 'local' && (
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+              <SelectField label={t(lang, 'aiModel')} value={aiModel} onChange={setAiModel} options={providerModels[aiProvider] || []} />
+              {aiProvider === 'claude' ? (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                  <label style={{ fontSize: 12, color: TOKENS.textSecondary, fontWeight: 500 }}>{t(lang, 'authMethod')}</label>
+                  <div style={{ display: 'flex', gap: 8 }}>
+                    {[['webauth', t(lang, 'webAuth')], ['apikey', t(lang, 'apiKeyAuth')]].map(([m, ml]) => (
+                      <button key={m} onClick={() => setAuthMethod(m)} style={{ flex: 1, padding: '8px 12px', background: authMethod === m ? TOKENS.primaryDim : TOKENS.bgInput, border: `1px solid ${authMethod === m ? TOKENS.primary : TOKENS.border}`, borderRadius: TOKENS.radiusSm, color: authMethod === m ? TOKENS.primary : TOKENS.textSecondary, fontSize: 13, cursor: 'pointer', fontFamily: TOKENS.font }}>
+                        {ml}
+                      </button>
+                    ))}
+                  </div>
                 </div>
-              </div>
-            ) : (
-              <InputField label={t(lang, 'apiKey')} value={apiKey} onChange={setApiKey} type="password" placeholder="sk-..." />
-            )}
-          </div>
+              ) : (
+                <InputField label={t(lang, 'apiKey')} value={apiKey} onChange={setApiKey} type="password" placeholder="sk-..." />
+              )}
+            </div>
+          )}
           {aiProvider === 'claude' && authMethod === 'apikey' && (
             <InputField label={t(lang, 'apiKey')} value={apiKey} onChange={setApiKey} type="password" placeholder="sk-ant-..." />
           )}
@@ -159,6 +182,37 @@ export function SettingsPage({ onNavigate }) {
             <div style={{ padding: 12, background: TOKENS.primaryDim, borderRadius: TOKENS.radiusSm, border: `1px solid rgba(0,212,170,0.2)` }}>
               <div style={{ fontSize: 12, color: TOKENS.primary, marginBottom: 6, fontWeight: 600 }}>{lang === 'zh' ? '網頁認證模式' : 'Web Auth Mode'}</div>
               <div style={{ fontSize: 12, color: TOKENS.textSecondary }}>{lang === 'zh' ? '透過 OAuth 流程取得授權，無需 API Key。' : 'Authorize via OAuth — no API Key required.'}</div>
+            </div>
+          )}
+
+          {/* Local model configuration */}
+          {aiProvider === 'local' && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+              <div>
+                <div style={{ fontSize: 12, color: TOKENS.textSecondary, fontWeight: 500, marginBottom: 8 }}>{lang === 'zh' ? '快速設定平台' : 'Quick Setup'}</div>
+                <div style={{ display: 'flex', gap: 8 }}>
+                  {LOCAL_PLATFORMS.map(p => (
+                    <button key={p.label} onClick={() => { setAiBaseUrl(p.url); setAiModel(p.model); }}
+                      style={{ padding: '8px 18px', background: aiBaseUrl === p.url ? TOKENS.primaryDim : TOKENS.bgInput, border: `1px solid ${aiBaseUrl === p.url ? TOKENS.primary : TOKENS.border}`, borderRadius: TOKENS.radiusSm, cursor: 'pointer', color: aiBaseUrl === p.url ? TOKENS.primary : TOKENS.text, fontSize: 13, fontWeight: 600, fontFamily: TOKENS.font }}>
+                      {p.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: 12 }}>
+                <InputField label="API Base URL *" value={aiBaseUrl} onChange={setAiBaseUrl} placeholder="http://localhost:11434/v1" />
+                <InputField label={lang === 'zh' ? '模型名稱 *' : 'Model Name *'} value={aiModel} onChange={setAiModel} placeholder="llama3.2" />
+              </div>
+              <InputField label={lang === 'zh' ? 'API Key（vLLM 需要，Ollama 留空）' : 'API Key (required for vLLM, leave blank for Ollama)'} value={apiKey} onChange={setApiKey} type="password" placeholder={lang === 'zh' ? '選填' : 'optional'} />
+              <div style={{ padding: 12, background: TOKENS.bg, borderRadius: TOKENS.radiusSm, border: `1px solid ${TOKENS.border}` }}>
+                <div style={{ fontSize: 11, color: TOKENS.textMuted, marginBottom: 6, fontWeight: 600, textTransform: 'uppercase' }}>{lang === 'zh' ? '啟動指令參考' : 'Startup Commands'}</div>
+                {LOCAL_PLATFORMS.map(p => (
+                  <div key={p.label} style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 4 }}>
+                    <span style={{ fontSize: 11, color: TOKENS.primary, fontWeight: 600, minWidth: 36 }}>{p.label}</span>
+                    <code style={{ fontSize: 11, fontFamily: TOKENS.mono, color: TOKENS.textSecondary, background: 'rgba(255,255,255,0.04)', padding: '2px 6px', borderRadius: 3 }}>{p.hint}</code>
+                  </div>
+                ))}
+              </div>
             </div>
           )}
         </div>

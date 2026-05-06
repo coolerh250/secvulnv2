@@ -31,7 +31,7 @@ async function get(req, res, next) {
 async function update(req, res, next) {
   try {
     const {
-      ai_provider, ai_model, ai_api_key, ai_auth_method,
+      ai_provider, ai_model, ai_api_key, ai_auth_method, ai_base_url,
       notif_email, notif_web, notif_threshold, notif_email_addr,
       interface_language, data_sources,
     } = req.body;
@@ -64,16 +64,17 @@ async function update(req, res, next) {
         ai_model          = COALESCE($2,  ai_model),
         ai_api_key        = COALESCE($3,  ai_api_key),
         ai_auth_method    = COALESCE($4,  ai_auth_method),
-        notif_email       = COALESCE($5,  notif_email),
-        notif_web         = COALESCE($6,  notif_web),
-        notif_threshold   = COALESCE($7,  notif_threshold),
-        notif_email_addr  = COALESCE($8,  notif_email_addr),
-        interface_language = COALESCE($9, interface_language),
-        data_sources      = COALESCE($10, data_sources),
+        ai_base_url       = COALESCE($5,  ai_base_url),
+        notif_email       = COALESCE($6,  notif_email),
+        notif_web         = COALESCE($7,  notif_web),
+        notif_threshold   = COALESCE($8,  notif_threshold),
+        notif_email_addr  = COALESCE($9,  notif_email_addr),
+        interface_language = COALESCE($10, interface_language),
+        data_sources      = COALESCE($11, data_sources),
         updated_at        = NOW()
        WHERE id = 1 RETURNING *`,
       [
-        ai_provider, ai_model, realAiKey, ai_auth_method,
+        ai_provider, ai_model, realAiKey, ai_auth_method, ai_base_url || null,
         notif_email ?? null, notif_web ?? null, notif_threshold, notif_email_addr,
         interface_language,
         mergedSources ? JSON.stringify(mergedSources) : null,
