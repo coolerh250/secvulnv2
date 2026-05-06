@@ -347,15 +347,13 @@ async function syncPanRss(sinceDate) {
     const published = item.pubDate ? new Date(item.pubDate).toISOString().slice(0, 10) : null;
     if (!published || published < cutoff) continue;
 
-    // Incremental: skip items published before or at last sync time
-    if (sinceMs > 0 && new Date(item.pubDate).getTime() <= sinceMs) continue;
-
     const { rows } = await pool.query(
       'SELECT id, source FROM vulnerabilities WHERE id = $1', [item.cveId]
     );
 
     if (rows.length > 0) {
-      // Existing CVE — append PAN label to source if not already present
+      // Existing CVE — always check and append PAN label regardless of sync date
+      // (idempotent: safe to run on every sync cycle)
       if (!(rows[0].source || '').includes('PAN Security Advisory')) {
         await pool.query(
           `UPDATE vulnerabilities
@@ -366,7 +364,10 @@ async function syncPanRss(sinceDate) {
         updated++;
       }
     } else {
-      // New CVE not yet in NVD — insert minimal record; NVD sync will enrich later
+      // New CVE not yet in NVD — only insert if newer than last sync
+      // (avoids re-inserting records NVD will eventually provide in full)
+      if (sinceMs > 0 && new Date(item.pubDate).getTime() <= sinceMs) continue;
+
       const cvss = SEVERITY_CVSS_DEFAULT[item.severity] ?? 5.0;
       await pool.query(
         `INSERT INTO vulnerabilities
