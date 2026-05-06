@@ -203,8 +203,9 @@ export function DevicesPage({ onNavigate }) {
 
     setVulnsLoading(true);
     try {
-      const res = await vulnApi.list({ vendor: device.vendor });
-      const filtered = res.data.filter(v =>
+      const res = await vulnApi.list({ vendor: device.vendor, limit: 9999, page: 1 });
+      const vulns = res.data.data ?? res.data; // handle both paginated and legacy response
+      const filtered = vulns.filter(v =>
         isProductMatch(device.device_type, v.affected_products, v.product) &&
         affectsDevice(device.firmware, v.firmware_versions)
       );
