@@ -9,6 +9,7 @@ const userRoutes           = require('./routes/users');
 const settingsRoutes       = require('./routes/settings');
 const dashboardRoutes      = require('./routes/dashboard');
 const errorHandler         = require('./middleware/errorHandler');
+const scheduler            = require('./services/scheduler');
 
 const app  = express();
 const PORT = process.env.PORT || 3001;
@@ -27,4 +28,7 @@ app.get('/api/health', (_, res) => res.json({ status: 'ok' }));
 
 app.use(errorHandler);
 
-app.listen(PORT, () => console.log(`Backend running on http://localhost:${PORT}`));
+app.listen(PORT, () => {
+  console.log(`Backend running on http://localhost:${PORT}`);
+  scheduler.start();
+});
