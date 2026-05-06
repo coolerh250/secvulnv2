@@ -52,6 +52,14 @@ export const deviceApi = {
   scanAll: ()          => api.post('/devices/scan-all'),
 };
 
+// Per-device vulnerability tracking
+export const deviceVulnApi = {
+  list:              (deviceId)                  => api.get(`/devices/${deviceId}/vulnerabilities`),
+  updateStatus:      (deviceId, vulnId, status)  => api.put(`/devices/${deviceId}/vulnerabilities/${vulnId}/status`, { handle_status: status }),
+  addNote:           (deviceId, vulnId, text)    => api.post(`/devices/${deviceId}/vulnerabilities/${vulnId}/notes`, { text }),
+  setRiskAcceptance: (deviceId, vulnId, data)    => api.post(`/devices/${deviceId}/vulnerabilities/${vulnId}/risk-acceptance`, data),
+};
+
 // Users
 export const userApi = {
   list:   ()         => api.get('/users'),

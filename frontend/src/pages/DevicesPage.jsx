@@ -2,7 +2,7 @@ import { useState, useEffect, Fragment } from 'react';
 import { TOKENS, t } from '../styles/tokens';
 import { useLang } from '../contexts/LangContext';
 import { useAuth } from '../contexts/AuthContext';
-import { deviceApi, vulnApi } from '../services/api';
+import { deviceApi, deviceVulnApi } from '../services/api';
 import { Card, Btn, InputField, SelectField, Badge, CvssBar, VulnStatusBadge } from '../components/ui';
 import { Icons } from '../components/Icons';
 import { VulnDetailModal } from '../components/VulnDetailModal';
@@ -203,13 +203,8 @@ export function DevicesPage({ onNavigate }) {
 
     setVulnsLoading(true);
     try {
-      const res = await vulnApi.list({ vendor: device.vendor, limit: 9999, page: 1 });
-      const vulns = res.data.data ?? res.data; // handle both paginated and legacy response
-      const filtered = vulns.filter(v =>
-        isProductMatch(device.device_type, v.affected_products, v.product) &&
-        affectsDevice(device.firmware, v.firmware_versions)
-      );
-      setDeviceVulns(prev => ({ ...prev, [device.id]: filtered }));
+      const res = await deviceVulnApi.list(device.id);
+      setDeviceVulns(prev => ({ ...prev, [device.id]: res.data }));
     } finally {
       setVulnsLoading(false);
     }
@@ -220,8 +215,8 @@ export function DevicesPage({ onNavigate }) {
       ...prev,
       [deviceId]: (prev[deviceId] || []).map(v => v.id === vulnId ? { ...v, ...updates } : v),
     }));
-    if (deviceSelected?.id === vulnId) {
-      setDeviceSelected(prev => ({ ...prev, ...updates }));
+    if (deviceSelected?.vuln.id === vulnId) {
+      setDeviceSelected(prev => ({ ...prev, vuln: { ...prev.vuln, ...updates } }));
     }
     // Update device vuln_count when fixed status toggles
     if (updates.handle_status) {
@@ -366,10 +361,14 @@ export function DevicesPage({ onNavigate }) {
                       {lang === 'zh' ? '載入中...' : 'Loading...'}
                     </div>
                   ) : vulns.length === 0 ? (
-                    <div style={{ padding: '16px', fontSize: 13, color: TOKENS.textMuted }}>{lang === 'zh' ? '此設備無匹配弱點' : 'No matching vulnerabilities for this device'}</div>
+                    <div style={{ padding: '16px', fontSize: 13, color: d.vuln_count > 0 ? TOKENS.warning : TOKENS.textMuted }}>
+                      {d.vuln_count > 0
+                        ? (lang === 'zh' ? '⚠ 弱點資料需更新，請點選「重新比對」進行掃描' : '⚠ Vulnerability data outdated — click Re-scan to refresh')
+                        : (lang === 'zh' ? '此設備無匹配弱點' : 'No matching vulnerabilities for this device')}
+                    </div>
                   ) : (
                     vulns.slice(0, 10).map((v, i) => (
-                      <div key={v.id} onClick={() => setDeviceSelected({ ...v, _deviceId: d.id })}
+                      <div key={v.id} onClick={() => setDeviceSelected({ vuln: v, device: d })}
                         style={{ display: 'grid', gridTemplateColumns: '130px 1fr 90px 80px 90px', gap: 10, padding: '9px 16px', borderBottom: i < Math.min(vulns.length, 10) - 1 ? `1px solid ${TOKENS.border}` : 'none', cursor: 'pointer', alignItems: 'center' }}
                         onMouseEnter={e => e.currentTarget.style.background = 'rgba(255,255,255,0.04)'}
                         onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
@@ -406,12 +405,13 @@ export function DevicesPage({ onNavigate }) {
       {/* Vuln detail modal */}
       {deviceSelected && (
         <VulnDetailModal
-          key={deviceSelected.id}
-          vuln={deviceSelected}
+          key={deviceSelected.vuln.id}
+          vuln={deviceSelected.vuln}
+          device={deviceSelected.device}
           lang={lang}
           onClose={() => setDeviceSelected(null)}
-          onUpdate={(id, updates) => handleVulnUpdate(deviceSelected._deviceId, id, updates)}
-          onDelete={(id) => handleVulnDelete(deviceSelected._deviceId, id)}
+          onUpdate={(id, updates) => handleVulnUpdate(deviceSelected.device.id, id, updates)}
+          onDelete={(id) => handleVulnDelete(deviceSelected.device.id, id)}
         />
       )}
     </div>

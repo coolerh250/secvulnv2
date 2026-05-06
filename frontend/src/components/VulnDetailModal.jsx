@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { TOKENS, ACCEPT_REASONS, t } from '../styles/tokens';
-import { vulnApi } from '../services/api';
+import { vulnApi, deviceVulnApi } from '../services/api';
 import { Badge, CvssBar, VulnStatusBadge, Btn, InputField, SelectField } from './ui';
 import { Icons } from './Icons';
 
@@ -13,7 +13,8 @@ import { Icons } from './Icons';
 //   onClose    – () => void
 //   onUpdate   – (id, updates) => void  (parent updates its local list)
 //   onDelete   – (id) => void           (parent removes from its local list)
-export function VulnDetailModal({ vuln, lang, onClose, onUpdate, onDelete }) {
+//   device     – device object; when set, uses per-device API and hides global delete
+export function VulnDetailModal({ vuln, lang, onClose, onUpdate, onDelete, device }) {
   const { can } = useAuth();
   const canModify = can('search', 'modify');
 
@@ -26,13 +27,22 @@ export function VulnDetailModal({ vuln, lang, onClose, onUpdate, onDelete }) {
   const [aiLoading,         setAiLoading]         = useState(false);
 
   const handleSetStatus = async (status) => {
-    await vulnApi.updateStatus(vuln.id, status);
+    if (device) {
+      await deviceVulnApi.updateStatus(device.id, vuln.id, status);
+    } else {
+      await vulnApi.updateStatus(vuln.id, status);
+    }
     onUpdate(vuln.id, { handle_status: status });
   };
 
   const handleAddNote = async () => {
     if (!noteText.trim()) return;
-    const res = await vulnApi.addNote(vuln.id, noteText.trim());
+    let res;
+    if (device) {
+      res = await deviceVulnApi.addNote(device.id, vuln.id, noteText.trim());
+    } else {
+      res = await vulnApi.addNote(vuln.id, noteText.trim());
+    }
     onUpdate(vuln.id, { notes: [...(vuln.notes || []), res.data] });
     setNoteText(''); setShowNoteInput(false);
   };
@@ -130,10 +140,12 @@ export function VulnDetailModal({ vuln, lang, onClose, onUpdate, onDelete }) {
                 {vuln.handle_status !== 'pending' && (
                   <Btn variant="ghost" onClick={() => handleSetStatus('pending')}>{lang === 'zh' ? '重設為待處理' : 'Reset to Pending'}</Btn>
                 )}
-                <Btn icon={Icons.trash} onClick={() => setShowDeleteConfirm(true)}
-                  style={{ marginLeft: 'auto', color: TOKENS.danger, background: TOKENS.dangerDim, border: `1px solid ${TOKENS.danger}40` }}>
-                  {lang === 'zh' ? '刪除此弱點' : 'Delete Vulnerability'}
-                </Btn>
+                {!device && (
+                  <Btn icon={Icons.trash} onClick={() => setShowDeleteConfirm(true)}
+                    style={{ marginLeft: 'auto', color: TOKENS.danger, background: TOKENS.dangerDim, border: `1px solid ${TOKENS.danger}40` }}>
+                    {lang === 'zh' ? '刪除此弱點' : 'Delete Vulnerability'}
+                  </Btn>
+                )}
               </div>
               {showDeleteConfirm && (
                 <div style={{ marginTop: 12, padding: 14, background: TOKENS.dangerDim, borderRadius: TOKENS.radiusSm, border: `1px solid ${TOKENS.danger}50` }}>
@@ -253,7 +265,11 @@ export function VulnDetailModal({ vuln, lang, onClose, onUpdate, onDelete }) {
       {showAcceptModal && (
         <RiskAcceptModal vuln={vuln} lang={lang} onClose={() => setShowAcceptModal(false)}
           onSave={async (data) => {
-            await vulnApi.setRiskAcceptance(vuln.id, data);
+            if (device) {
+              await deviceVulnApi.setRiskAcceptance(device.id, vuln.id, data);
+            } else {
+              await vulnApi.setRiskAcceptance(vuln.id, data);
+            }
             onUpdate(vuln.id, { handle_status: 'accepted', riskAcceptance: { ...data, accepted_date: new Date().toISOString().slice(0, 10) } });
             setShowAcceptModal(false);
           }} />
