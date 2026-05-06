@@ -107,7 +107,10 @@ export function VulnDetailModal({ vuln, lang, onClose, onUpdate, onDelete, devic
           {/* Affected versions */}
           <div style={{ padding: 14, background: TOKENS.bg, borderRadius: TOKENS.radius, border: `1px solid ${TOKENS.border}` }}>
             <div style={{ fontSize: 11, color: TOKENS.textMuted, marginBottom: 6, textTransform: 'uppercase' }}>{t(lang, 'affected')}</div>
-            <div style={{ fontSize: 13, color: TOKENS.text, fontFamily: TOKENS.mono }}>{vuln.vendor} {vuln.product}</div>
+            <div style={{ fontSize: 13, color: TOKENS.text, fontFamily: TOKENS.mono, marginBottom: 6 }}>{vuln.vendor}</div>
+            {(vuln.affected_products?.length > 0 ? vuln.affected_products : (vuln.product ? [vuln.product] : [])).map((p, i) => (
+              <span key={i} style={{ display: 'inline-block', marginRight: 6, marginBottom: 6, padding: '2px 8px', background: TOKENS.primaryDim, borderRadius: 4, fontSize: 12, fontFamily: TOKENS.mono, color: TOKENS.primary }}>{p}</span>
+            ))}
             <div style={{ display: 'flex', gap: 6, marginTop: 6, flexWrap: 'wrap' }}>
               {(vuln.firmware_versions || []).map((f, i) => (
                 <span key={i} style={{ padding: '2px 8px', background: TOKENS.warningDim, borderRadius: 4, fontSize: 12, fontFamily: TOKENS.mono, color: TOKENS.warning }}>{f}</span>
