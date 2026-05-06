@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { TOKENS, ACCEPT_REASONS, t } from '../styles/tokens';
-import { vulnApi, deviceVulnApi } from '../services/api';
+import { vulnApi, deviceVulnApi, aiApi } from '../services/api';
 import { Badge, CvssBar, VulnStatusBadge, Btn, InputField, SelectField } from './ui';
 import { Icons } from './Icons';
 
@@ -59,9 +59,19 @@ export function VulnDetailModal({ vuln, lang, onClose, onUpdate, onDelete, devic
   };
 
   const runAiAnalysis = async () => {
-    setAiResult(lang === 'zh'
-      ? '## AI 分析尚未開放\n\n此功能需先在「設定」中完成 AI 服務設定，並由後端連線至 AI API。'
-      : '## AI Analysis Not Available\n\nThis feature requires AI service configuration in Settings and a backend API connection.');
+    setAiLoading(true);
+    setAiResult(null);
+    try {
+      const res = await aiApi.analyze(vuln, lang);
+      setAiResult(res.data.analysis);
+    } catch (err) {
+      const msg = err.response?.data?.error;
+      setAiResult(lang === 'zh'
+        ? `## 分析失敗\n\n${msg || '發生未預期錯誤，請稍後再試'}`
+        : `## Analysis Failed\n\n${msg || 'An unexpected error occurred. Please try again.'}`);
+    } finally {
+      setAiLoading(false);
+    }
   };
 
   return (

@@ -68,6 +68,11 @@ export const userApi = {
   remove: (id)       => api.delete(`/users/${id}`),
 };
 
+// AI Analysis
+export const aiApi = {
+  analyze: (vuln, lang) => api.post('/ai/analyze', { vuln, lang }),
+};
+
 // Settings
 export const settingsApi = {
   get:        ()     => api.get('/settings'),

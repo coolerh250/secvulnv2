@@ -8,6 +8,7 @@ const deviceRoutes         = require('./routes/devices');
 const userRoutes           = require('./routes/users');
 const settingsRoutes       = require('./routes/settings');
 const dashboardRoutes      = require('./routes/dashboard');
+const aiRoutes             = require('./routes/ai');
 const errorHandler         = require('./middleware/errorHandler');
 const scheduler            = require('./services/scheduler');
 
@@ -23,6 +24,7 @@ app.use('/api/devices',         deviceRoutes);
 app.use('/api/users',           userRoutes);
 app.use('/api/settings',        settingsRoutes);
 app.use('/api/dashboard',       dashboardRoutes);
+app.use('/api/ai',              aiRoutes);
 
 app.get('/api/health', (_, res) => res.json({ status: 'ok' }));
 
