@@ -26,7 +26,7 @@ function affectsDevice(deviceFirmware, firmwareVersions) {
   if (!firmwareVersions || firmwareVersions.length === 0) return true;
   const dev = parseVer(deviceFirmware);
   for (const range of firmwareVersions) {
-    const parts = range.split(' – '); // ' – ' en-dash
+    const parts = range.split(/\s[–-]\s/); // en-dash or hyphen
     if (parts.length === 1) {
       if (cmpVer(dev, parseVer(parts[0].trim())) === 0) return true;
     } else {

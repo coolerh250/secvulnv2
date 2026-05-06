@@ -40,19 +40,25 @@ export function SearchPage({ preset, onPresetConsumed }) {
     setLoading(true);
     try {
       const params = {};
-      const v  = overrides.vendor       ?? (vendor       !== 'all' ? vendor       : undefined);
-      const s  = overrides.severity     ?? (severity     !== 'all' ? severity     : undefined);
-      const h  = overrides.handleStatus ?? (handleFilter !== 'all' ? handleFilter : undefined);
-      const dt = overrides.deviceType   ?? (deviceType   !== 'all' ? deviceType   : undefined);
-      if (v)  params.vendor        = v;
-      if (s)  params.severity      = s;
-      if (h)  params.handle_status = h;
-      if (dt) params.device_type   = dt;
-      if (product)  params.product   = product;
-      if (firmware) params.firmware  = firmware;
-      if (dateFrom) params.date_from = dateFrom;
-      if (dateTo)   params.date_to   = dateTo;
-      if (keyword)  params.keyword   = keyword;
+      // Use 'key' in overrides to distinguish "explicitly set" from "not provided"
+      const _vendor  = 'vendor'       in overrides ? overrides.vendor       : vendor;
+      const _sev     = 'severity'     in overrides ? overrides.severity     : severity;
+      const _handle  = 'handleStatus' in overrides ? overrides.handleStatus : handleFilter;
+      const _dt      = 'deviceType'   in overrides ? overrides.deviceType   : deviceType;
+      const _product = 'product'      in overrides ? overrides.product      : product;
+      const _fw      = 'firmware'     in overrides ? overrides.firmware     : firmware;
+      const _from    = 'dateFrom'     in overrides ? overrides.dateFrom     : dateFrom;
+      const _to      = 'dateTo'       in overrides ? overrides.dateTo       : dateTo;
+      const _kw      = 'keyword'      in overrides ? overrides.keyword      : keyword;
+      if (_vendor  && _vendor  !== 'all') params.vendor        = _vendor;
+      if (_sev     && _sev     !== 'all') params.severity      = _sev;
+      if (_handle  && _handle  !== 'all') params.handle_status = _handle;
+      if (_dt      && _dt      !== 'all') params.device_type   = _dt;
+      if (_product) params.product   = _product;
+      if (_fw)      params.firmware  = _fw;
+      if (_from)    params.date_from = _from;
+      if (_to)      params.date_to   = _to;
+      if (_kw)      params.keyword   = _kw;
       const res = await vulnApi.list(params);
       setResults(res.data);
     } finally {
@@ -78,12 +84,13 @@ export function SearchPage({ preset, onPresetConsumed }) {
   }, [preset]);
 
   const doReset = () => {
+    const today  = new Date().toISOString().slice(0, 10);
+    const from90 = new Date(Date.now() - 90 * 86400000).toISOString().slice(0, 10);
     setVendor('all'); setDeviceType('all'); setProduct(''); setFirmware(''); setSeverity('all');
-    setHandleFilter('all');
-    setDateFrom(new Date(Date.now() - 90 * 86400000).toISOString().slice(0, 10));
-    setDateTo(new Date().toISOString().slice(0, 10));
-    setKeyword('');
-    doSearch({});
+    setHandleFilter('all'); setDateFrom(from90); setDateTo(today); setKeyword('');
+    // Pass all params explicitly so doSearch doesn't read stale state via closure
+    doSearch({ vendor: 'all', severity: 'all', handleStatus: 'all', deviceType: 'all',
+               product: '', firmware: '', keyword: '', dateFrom: from90, dateTo: today });
   };
 
   const sorted = [...results].sort((a, b) => {

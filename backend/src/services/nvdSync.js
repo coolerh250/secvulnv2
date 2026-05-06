@@ -268,20 +268,18 @@ async function rebuildTrends() {
     map[key][r.severity] = (map[key][r.severity] || 0) + r.cnt;
   }
 
+  // Truncate first so months with no remaining vulns don't persist stale counts
+  await pool.query('TRUNCATE TABLE vuln_trends');
+
   for (const v of Object.values(map)) {
     await pool.query(
       `INSERT INTO vuln_trends (month, year, critical_count, high_count, medium_count, low_count)
-       VALUES ($1, $2, $3, $4, $5, $6)
-       ON CONFLICT (month, year) DO UPDATE SET
-         critical_count = EXCLUDED.critical_count,
-         high_count     = EXCLUDED.high_count,
-         medium_count   = EXCLUDED.medium_count,
-         low_count      = EXCLUDED.low_count`,
+       VALUES ($1, $2, $3, $4, $5, $6)`,
       [MONTH_LABELS[v.month_num - 1], v.year, v.CRITICAL || 0, v.HIGH || 0, v.MEDIUM || 0, v.LOW || 0]
     );
   }
 
-  return Object.keys(map).length; // number of months updated
+  return Object.keys(map).length; // number of months rebuilt
 }
 
 // ---------------------------------------------------------------------------

@@ -1,21 +1,5 @@
 const pool = require('../db');
-
-// ---------------------------------------------------------------------------
-// Device type → CPE product name mapping (lowercase)
-// ---------------------------------------------------------------------------
-
-const DEVICE_TYPE_PRODUCTS = {
-  'FortiGate':     ['fortios', 'fortios ips engine'],
-  'FortiWiFi':     ['fortios', 'fortiwifi'],
-  'FortiAnalyzer': ['fortianalyzer'],
-  'FortiManager':  ['fortimanager'],
-  'FortiProxy':    ['fortiproxy'],
-  'FortiADC':      ['fortiadc'],
-  'FortiMail':     ['fortimail'],
-  'FortiWeb':      ['fortiweb'],
-  'PA-Series':     ['pan-os'],
-  'Panorama':      ['panorama', 'pan-os'],
-};
+const { DEVICE_TYPE_PRODUCTS } = require('../lib/deviceTypes');
 
 // affectedProducts: JSONB array from affected_products column (populated after NVD sync)
 // productText:      legacy product TEXT column, always populated (e.g. "Fortios, Fortianalyzer")
@@ -66,7 +50,7 @@ function affectsDevice(deviceFirmware, firmwareVersions) {
   if (!firmwareVersions || firmwareVersions.length === 0) return true;
   const dev = parseVer(deviceFirmware);
   for (const range of firmwareVersions) {
-    const parts = range.split(' – '); // ' – ' en-dash
+    const parts = range.split(/\s[–-]\s/); // en-dash or hyphen
     if (parts.length === 1) {
       if (cmpVer(dev, parseVer(parts[0].trim())) === 0) return true;
     } else {
@@ -170,18 +154,31 @@ async function scan(req, res, next) {
 
 async function scanAll(req, res, next) {
   try {
-    const { rows: devices } = await pool.query('SELECT * FROM devices');
+    const [{ rows: devices }, { rows: allVulns }] = await Promise.all([
+      pool.query('SELECT * FROM devices'),
+      pool.query(`SELECT vendor, firmware_versions, affected_products, product FROM vulnerabilities WHERE handle_status != 'fixed'`),
+    ]);
     if (devices.length === 0) return res.json({ updated: 0, devices: [] });
-    const updated = [];
-    for (const device of devices) {
-      const vuln_count = await countAffectedVulns(device.vendor, device.firmware, device.device_type);
+
+    const vulnsByVendor = {};
+    for (const v of allVulns) {
+      (vulnsByVendor[v.vendor] = vulnsByVendor[v.vendor] || []).push(v);
+    }
+
+    const updated = await Promise.all(devices.map(async device => {
+      const vendorVulns = vulnsByVendor[device.vendor] || [];
+      const vuln_count = vendorVulns.filter(r =>
+        isProductMatch(device.device_type, r.affected_products, r.product) &&
+        affectsDevice(device.firmware, r.firmware_versions)
+      ).length;
       const status = vuln_count > 0 ? 'vulnerable' : 'upToDate';
       const { rows } = await pool.query(
         `UPDATE devices SET status=$1, vuln_count=$2, last_check=CURRENT_DATE, updated_at=NOW() WHERE id=$3 RETURNING *`,
         [status, vuln_count, device.id]
       );
-      updated.push(rows[0]);
-    }
+      return rows[0];
+    }));
+
     res.json({ updated: updated.length, devices: updated });
   } catch (err) {
     next(err);
@@ -191,17 +188,21 @@ async function scanAll(req, res, next) {
 // Recalculate vuln_count for all devices matching a given vendor.
 // Called (fire-and-forget) when a vulnerability's counted status changes.
 async function recalcForVendor(vendor) {
-  const { rows: devices } = await pool.query(
-    'SELECT * FROM devices WHERE vendor = $1', [vendor]
-  );
-  for (const device of devices) {
-    const vuln_count = await countAffectedVulns(device.vendor, device.firmware, device.device_type);
+  const [{ rows: devices }, { rows: vulns }] = await Promise.all([
+    pool.query('SELECT * FROM devices WHERE vendor = $1', [vendor]),
+    pool.query(`SELECT firmware_versions, affected_products, product FROM vulnerabilities WHERE vendor = $1 AND handle_status != 'fixed'`, [vendor]),
+  ]);
+  await Promise.all(devices.map(async device => {
+    const vuln_count = vulns.filter(r =>
+      isProductMatch(device.device_type, r.affected_products, r.product) &&
+      affectsDevice(device.firmware, r.firmware_versions)
+    ).length;
     const status = vuln_count > 0 ? 'vulnerable' : 'upToDate';
     await pool.query(
       `UPDATE devices SET status=$1, vuln_count=$2, last_check=CURRENT_DATE, updated_at=NOW() WHERE id=$3`,
       [status, vuln_count, device.id]
     );
-  }
+  }));
 }
 
 module.exports = { list, create, update, remove, scan, scanAll, recalcForVendor };
