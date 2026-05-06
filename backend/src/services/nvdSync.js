@@ -169,7 +169,13 @@ async function upsertCve(cve, vendor) {
        title_en          = EXCLUDED.title_en,
        description       = EXCLUDED.description,
        description_en    = EXCLUDED.description_en,
-       source            = EXCLUDED.source,
+       source            = CASE
+                             WHEN vulnerabilities.source IS NULL OR vulnerabilities.source = '' OR vulnerabilities.source = 'NVD'
+                               THEN 'NVD'
+                             WHEN vulnerabilities.source LIKE 'NVD%'
+                               THEN vulnerabilities.source   -- already labelled with NVD, keep extra sources
+                             ELSE 'NVD + ' || vulnerabilities.source  -- RSS-inserted record now also confirmed by NVD
+                           END,
        recommendation    = EXCLUDED.recommendation,
        recommendation_en = EXCLUDED.recommendation_en,
        refs              = EXCLUDED.refs,
@@ -283,17 +289,133 @@ async function rebuildTrends() {
 }
 
 // ---------------------------------------------------------------------------
+// PAN Security Advisory RSS sync
+// RSS feed: https://security.paloaltonetworks.com/rss.xml
+// Title format: "CVE-XXXX-XXXX Product: Description (Severity: HIGH)"
+// ---------------------------------------------------------------------------
+
+const SEVERITY_CVSS_DEFAULT = { CRITICAL: 9.0, HIGH: 7.5, MEDIUM: 5.0, LOW: 2.0 };
+
+function fetchText(url) {
+  return new Promise((resolve, reject) => {
+    const req = https.request(url, { timeout: 30000 }, res => {
+      if (res.statusCode !== 200) return reject(new Error(`RSS fetch failed: HTTP ${res.statusCode}`));
+      let body = '';
+      res.on('data', c => body += c);
+      res.on('end', () => resolve(body));
+    });
+    req.on('error', reject);
+    req.on('timeout', () => { req.destroy(); reject(new Error('RSS request timed out')); });
+    req.end();
+  });
+}
+
+function parsePanRssItems(xml) {
+  const items = [];
+  const blockRe = /<item>([\s\S]*?)<\/item>/gi;
+  let m;
+  while ((m = blockRe.exec(xml)) !== null) {
+    const block = m[1];
+    const get = tag => {
+      const r = new RegExp(`<${tag}[^>]*>([\\s\\S]*?)<\\/${tag}>`, 'i').exec(block);
+      return r ? r[1].replace(/<!\[CDATA\[|\]\]>/g, '').trim() : '';
+    };
+    const title   = get('title');
+    const link    = get('link');
+    const pubDate = get('pubDate');
+
+    // Only process CVE-format entries; skip PAN-SA-XXXX informational bulletins
+    const cveM = title.match(/^(CVE-\d{4}-\d+)\s+(.*?)\s+\(Severity:\s*(CRITICAL|HIGH|MEDIUM|LOW|INFORMATIONAL)\)/i);
+    if (!cveM) continue;
+    const [, cveId, desc, sev] = cveM;
+    if (sev.toUpperCase() === 'INFORMATIONAL') continue;
+
+    items.push({ cveId, title: desc.trim(), severity: sev.toUpperCase(), link, pubDate });
+  }
+  return items;
+}
+
+async function syncPanRss(sinceDate) {
+  const xml      = await fetchText('https://security.paloaltonetworks.com/rss.xml');
+  const items    = parsePanRssItems(xml);
+  const cutoff   = getCutoffDate();
+  const sinceMs  = (sinceDate && sinceDate !== '—') ? new Date(sinceDate).getTime() : 0;
+
+  let inserted = 0, updated = 0;
+
+  for (const item of items) {
+    const published = item.pubDate ? new Date(item.pubDate).toISOString().slice(0, 10) : null;
+    if (!published || published < cutoff) continue;
+
+    // Incremental: skip items published before or at last sync time
+    if (sinceMs > 0 && new Date(item.pubDate).getTime() <= sinceMs) continue;
+
+    const { rows } = await pool.query(
+      'SELECT id, source FROM vulnerabilities WHERE id = $1', [item.cveId]
+    );
+
+    if (rows.length > 0) {
+      // Existing CVE — append PAN label to source if not already present
+      if (!(rows[0].source || '').includes('PAN Security Advisory')) {
+        await pool.query(
+          `UPDATE vulnerabilities
+           SET source = source || ' + PAN Security Advisory', updated_at = NOW()
+           WHERE id = $1`,
+          [item.cveId]
+        );
+        updated++;
+      }
+    } else {
+      // New CVE not yet in NVD — insert minimal record; NVD sync will enrich later
+      const cvss = SEVERITY_CVSS_DEFAULT[item.severity] ?? 5.0;
+      await pool.query(
+        `INSERT INTO vulnerabilities
+           (id, vendor, product, firmware_versions, affected_products, cvss, severity, published,
+            title, title_en, description, description_en,
+            source, recommendation, recommendation_en, refs, handle_status, updated_at)
+         VALUES ($1,'Palo Alto','PAN-OS','[]'::jsonb,'[]'::jsonb,
+                 $2,$3,$4,$5,$6,$7,$8,
+                 'PAN Security Advisory',$9,$10,$11::jsonb,'pending',NOW())
+         ON CONFLICT (id) DO NOTHING`,
+        [
+          item.cveId, cvss, item.severity, published,
+          item.title, item.title,   // title / title_en
+          item.title, item.title,   // description / description_en
+          buildRecommendation(item.severity, 'Palo Alto', true),
+          buildRecommendation(item.severity, 'Palo Alto', false),
+          JSON.stringify([item.link].filter(Boolean)),
+        ]
+      );
+      inserted++;
+    }
+  }
+
+  return { inserted, updated, total: items.length };
+}
+
+// ---------------------------------------------------------------------------
 // Public entry point called by settingsController
 // ---------------------------------------------------------------------------
 
+// Sources supported for automatic sync (NVD keyword-based + RSS-based)
+const SYNC_SOURCES = new Set(['nvd', 'fortinet', 'paloalto']);
+
 async function sync(sourceId, settings) {
-  const vendors = SOURCE_MAP[sourceId];
-  if (!vendors) throw new Error(`NVD sync not configured for source "${sourceId}"`);
-
   const src       = (settings.data_sources || []).find(s => s.id === sourceId);
-  const apiKey    = src?.apiKey    || null;
-  const sinceDate = src?.lastSync  || null;
+  const sinceDate = src?.lastSync || null;
 
+  // Palo Alto Networks: RSS sync against official security advisory feed
+  if (sourceId === 'paloalto') {
+    const result = await syncPanRss(sinceDate);
+    await rebuildTrends();
+    return { ...result, removed: 0 };
+  }
+
+  // NVD API sync (nvd and fortinet sources)
+  const vendors = SOURCE_MAP[sourceId];
+  if (!vendors) throw new Error(`Sync not configured for source "${sourceId}"`);
+
+  const apiKey = src?.apiKey || null;
   let totalInserted = 0, totalUpdated = 0;
 
   for (const { keyword, vendor } of vendors) {
@@ -314,4 +436,4 @@ async function sync(sourceId, settings) {
   return { inserted: totalInserted, updated: totalUpdated, removed: removed || 0 };
 }
 
-module.exports = { sync, rebuildTrends, SOURCE_MAP };
+module.exports = { sync, rebuildTrends, SOURCE_MAP, SYNC_SOURCES };

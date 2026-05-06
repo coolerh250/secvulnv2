@@ -1,5 +1,5 @@
 const pool = require('../db');
-const { sync, SOURCE_MAP } = require('./nvdSync');
+const { sync, SYNC_SOURCES } = require('./nvdSync');
 
 const FREQ_MS = {
   '1h':    1 * 60 * 60 * 1000,
@@ -24,7 +24,7 @@ async function runDueSources() {
     const now      = Date.now();
 
     for (const src of sources) {
-      if (!src.enabled || src.syncFreq === 'manual' || !SOURCE_MAP[src.id]) continue;
+      if (!src.enabled || src.syncFreq === 'manual' || !SYNC_SOURCES.has(src.id)) continue;
       const freqMs = FREQ_MS[src.syncFreq];
       if (!freqMs) continue;
 
