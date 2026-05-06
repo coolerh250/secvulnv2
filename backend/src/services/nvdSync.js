@@ -364,10 +364,10 @@ async function syncPanRss(sinceDate) {
         updated++;
       }
     } else {
-      // New CVE not yet in NVD — only insert if newer than last sync
-      // (avoids re-inserting records NVD will eventually provide in full)
-      if (sinceMs > 0 && new Date(item.pubDate).getTime() <= sinceMs) continue;
-
+      // New CVE not yet in NVD — always attempt insert; ON CONFLICT DO NOTHING is
+      // the idempotency guard. No date filter here: the RSS feed is small (~25 items)
+      // and NVD may lag behind official PAN publications by hours or days, so a
+      // date-based filter would silently drop valid new records.
       const cvss = SEVERITY_CVSS_DEFAULT[item.severity] ?? 5.0;
       await pool.query(
         `INSERT INTO vulnerabilities
