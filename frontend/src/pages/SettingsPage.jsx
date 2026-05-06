@@ -13,7 +13,7 @@ export function SettingsPage({ onNavigate }) {
   const [saved,   setSaved]   = useState(false);
 
   const [aiProvider,   setAiProvider]   = useState('claude');
-  const [aiModel,      setAiModel]      = useState('claude-sonnet-4');
+  const [aiModel,      setAiModel]      = useState('claude-sonnet-4-6');
   const [authMethod,   setAuthMethod]   = useState('webauth');
   const [apiKey,       setApiKey]       = useState('');
   const [emailNotif,   setEmailNotif]   = useState(true);
@@ -45,7 +45,7 @@ export function SettingsPage({ onNavigate }) {
   }, []);
 
   const providerModels = {
-    claude:  [{ value: 'claude-sonnet-4', label: 'Claude Sonnet 4' }, { value: 'claude-opus-4', label: 'Claude Opus 4' }, { value: 'claude-haiku-3.5', label: 'Claude 3.5 Haiku' }],
+    claude:  [{ value: 'claude-sonnet-4-6', label: 'Claude Sonnet 4.6' }, { value: 'claude-opus-4-7', label: 'Claude Opus 4.7' }, { value: 'claude-haiku-4-5-20251001', label: 'Claude Haiku 4.5' }],
     gemini:  [{ value: 'gemini-2.5-pro', label: 'Gemini 2.5 Pro' }, { value: 'gemini-2.5-flash', label: 'Gemini 2.5 Flash' }],
     chatgpt: [{ value: 'gpt-4.1', label: 'GPT-4.1' }, { value: 'gpt-4.1-mini', label: 'GPT-4.1 Mini' }, { value: 'o3', label: 'o3' }],
     openai:  [{ value: 'gpt-4.1', label: 'GPT-4.1' }, { value: 'gpt-4.1-mini', label: 'GPT-4.1 Mini' }, { value: 'o3', label: 'o3' }],
