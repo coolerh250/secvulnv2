@@ -21,6 +21,18 @@ export function SettingsPage({ onNavigate }) {
   const [webNotif,     setWebNotif]     = useState(true);
   const [notifThresh,  setNotifThresh]  = useState('HIGH');
   const [email,        setEmail]        = useState('admin@example.com');
+  const [smtpHost,     setSmtpHost]     = useState('');
+  const [smtpPort,     setSmtpPort]     = useState(587);
+  const [smtpUser,     setSmtpUser]     = useState('');
+  const [smtpPass,     setSmtpPass]     = useState('');
+  const [smtpFrom,     setSmtpFrom]     = useState('');
+  const [webhookUrl,   setWebhookUrl]   = useState('');
+  const [webhookType,  setWebhookType]  = useState('teams');
+  const [webhookToken, setWebhookToken] = useState('');
+  const [testingEmail,   setTestingEmail]   = useState(false);
+  const [testEmailRes,   setTestEmailRes]   = useState(null);
+  const [testingWebhook, setTestingWebhook] = useState(false);
+  const [testWebhookRes, setTestWebhookRes] = useState(null);
   const [sources,      setSources]      = useState([]);
   const [expandedSrc,  setExpandedSrc]  = useState(null);
   const [testingId,    setTestingId]    = useState(null);
@@ -40,9 +52,17 @@ export function SettingsPage({ onNavigate }) {
       if (d.ai_base_url)     setAiBaseUrl(d.ai_base_url || '');
       if (d.notif_email !== undefined) setEmailNotif(d.notif_email);
       if (d.notif_web   !== undefined) setWebNotif(d.notif_web);
-      if (d.notif_threshold)   setNotifThresh(d.notif_threshold);
-      if (d.notif_email_addr)  setEmail(d.notif_email_addr);
-      if (d.data_sources)      setSources(d.data_sources);
+      if (d.notif_threshold)    setNotifThresh(d.notif_threshold);
+      if (d.notif_email_addr)   setEmail(d.notif_email_addr);
+      if (d.notif_smtp_host)    setSmtpHost(d.notif_smtp_host);
+      if (d.notif_smtp_port)    setSmtpPort(d.notif_smtp_port);
+      if (d.notif_smtp_user)    setSmtpUser(d.notif_smtp_user);
+      if (d.notif_smtp_pass)    setSmtpPass(d.notif_smtp_pass);
+      if (d.notif_smtp_from)    setSmtpFrom(d.notif_smtp_from);
+      if (d.notif_webhook_url)  setWebhookUrl(d.notif_webhook_url);
+      if (d.notif_webhook_type) setWebhookType(d.notif_webhook_type);
+      if (d.notif_webhook_token) setWebhookToken(d.notif_webhook_token);
+      if (d.data_sources)       setSources(d.data_sources);
     }).finally(() => setLoading(false));
   }, []);
 
@@ -95,8 +115,43 @@ export function SettingsPage({ onNavigate }) {
     setNewSrc({ name: '', desc: '', url: '', apiKey: '', syncFreq: '24h' }); setShowAddSrc(false);
   };
 
+  const handleTestEmail = async () => {
+    setTestingEmail(true); setTestEmailRes(null);
+    try {
+      const res = await settingsApi.testEmail();
+      setTestEmailRes(res.data.ok ? 'ok' : res.data.error || 'fail');
+    } catch (err) {
+      setTestEmailRes(err.response?.data?.error || 'fail');
+    } finally {
+      setTestingEmail(false);
+    }
+  };
+
+  const handleTestWebhook = async () => {
+    setTestingWebhook(true); setTestWebhookRes(null);
+    try {
+      const res = await settingsApi.testWebhook();
+      setTestWebhookRes(res.data.ok ? 'ok' : res.data.error || 'fail');
+    } catch (err) {
+      setTestWebhookRes(err.response?.data?.error || 'fail');
+    } finally {
+      setTestingWebhook(false);
+    }
+  };
+
   const handleSave = async () => {
-    await settingsApi.update({ ai_provider: aiProvider, ai_model: aiModel, ai_auth_method: authMethod, ai_api_key: apiKey || null, ai_base_url: aiBaseUrl || null, notif_email: emailNotif, notif_web: webNotif, notif_threshold: notifThresh, notif_email_addr: email, data_sources: sources });
+    await settingsApi.update({
+      ai_provider: aiProvider, ai_model: aiModel, ai_auth_method: authMethod,
+      ai_api_key: apiKey || null, ai_base_url: aiBaseUrl || null,
+      notif_email: emailNotif, notif_web: webNotif, notif_threshold: notifThresh,
+      notif_email_addr: email,
+      notif_smtp_host: smtpHost || null, notif_smtp_port: smtpPort || null,
+      notif_smtp_user: smtpUser || null, notif_smtp_pass: smtpPass || null,
+      notif_smtp_from: smtpFrom || null,
+      notif_webhook_url: webhookUrl || null, notif_webhook_type: webhookType || null,
+      notif_webhook_token: webhookToken || null,
+      data_sources: sources,
+    });
     setSaved(true); setTimeout(() => setSaved(false), 2000);
   };
 
@@ -221,16 +276,76 @@ export function SettingsPage({ onNavigate }) {
       {/* Notifications */}
       <Card>
         <div style={{ fontSize: 15, fontWeight: 600, color: TOKENS.text, marginBottom: 16, display: 'flex', alignItems: 'center', gap: 8 }}>{Icons.bell}<span>{t(lang, 'notifications')}</span></div>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-          {[{ label: t(lang, 'emailNotif'), sub: lang === 'zh' ? '新弱點發佈時寄送 Email' : 'Send email on new vulnerability', val: emailNotif, set: setEmailNotif },
-            { label: t(lang, 'webNotif'),   sub: lang === 'zh' ? '在網頁介面顯示通知' : 'Show alerts in the web interface',   val: webNotif,   set: setWebNotif }
-          ].map((n, i) => (
-            <div key={i} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <div><div style={{ fontSize: 13, color: TOKENS.text, fontWeight: 500 }}>{n.label}</div><div style={{ fontSize: 12, color: TOKENS.textMuted }}>{n.sub}</div></div>
-              <button style={toggleStyle(n.val)} onClick={() => n.set(!n.val)}><div style={toggleKnob(n.val)} /></button>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+
+          {/* Email */}
+          <div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: emailNotif ? 14 : 0 }}>
+              <div>
+                <div style={{ fontSize: 13, color: TOKENS.text, fontWeight: 500 }}>{t(lang, 'emailNotif')}</div>
+                <div style={{ fontSize: 12, color: TOKENS.textMuted }}>{lang === 'zh' ? '每次同步偵測到新弱點時寄送摘要 Email' : 'Send digest email when new vulnerabilities are found'}</div>
+              </div>
+              <button style={toggleStyle(emailNotif)} onClick={() => setEmailNotif(!emailNotif)}><div style={toggleKnob(emailNotif)} /></button>
             </div>
-          ))}
-          {emailNotif && <InputField label="Email" value={email} onChange={setEmail} type="email" placeholder="admin@company.com" />}
+            {emailNotif && (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 12, padding: 14, background: TOKENS.bg, borderRadius: TOKENS.radius, border: `1px solid ${TOKENS.border}` }}>
+                <InputField label={lang === 'zh' ? '收件 Email *' : 'Recipient Email *'} value={email} onChange={setEmail} type="email" placeholder="admin@company.com" />
+                <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: 12 }}>
+                  <InputField label={lang === 'zh' ? 'SMTP 主機 *' : 'SMTP Host *'} value={smtpHost} onChange={setSmtpHost} placeholder="smtp.gmail.com" />
+                  <InputField label="Port" value={String(smtpPort)} onChange={v => setSmtpPort(Number(v) || 587)} placeholder="587" />
+                </div>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                  <InputField label={lang === 'zh' ? 'SMTP 帳號 *' : 'SMTP Username *'} value={smtpUser} onChange={setSmtpUser} placeholder="you@example.com" />
+                  <InputField label={lang === 'zh' ? 'SMTP 密碼 *' : 'SMTP Password *'} value={smtpPass} onChange={setSmtpPass} type="password" />
+                </div>
+                <InputField label={lang === 'zh' ? '寄件人（選填）' : 'From Address (optional)'} value={smtpFrom} onChange={setSmtpFrom} placeholder='SecVuln <no-reply@example.com>' />
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                  <button onClick={handleTestEmail} disabled={testingEmail}
+                    style={{ padding: '7px 16px', background: testingEmail ? TOKENS.border : TOKENS.bgInput, border: `1px solid ${testEmailRes === 'ok' ? TOKENS.low : testEmailRes && testEmailRes !== 'ok' ? TOKENS.danger : TOKENS.border}`, borderRadius: TOKENS.radiusSm, color: testEmailRes === 'ok' ? TOKENS.low : testEmailRes && testEmailRes !== 'ok' ? TOKENS.danger : TOKENS.textSecondary, fontSize: 12, cursor: testingEmail ? 'not-allowed' : 'pointer', fontFamily: TOKENS.font }}>
+                    {testingEmail ? (lang === 'zh' ? '傳送中...' : 'Sending...') : (lang === 'zh' ? '測試寄送' : 'Send Test')}
+                  </button>
+                  {testEmailRes === 'ok' && <span style={{ fontSize: 12, color: TOKENS.low }}>✓ {lang === 'zh' ? '測試郵件已寄出' : 'Test email sent'}</span>}
+                  {testEmailRes && testEmailRes !== 'ok' && <span style={{ fontSize: 12, color: TOKENS.danger }}>✗ {testEmailRes}</span>}
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Webhook */}
+          <div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: webNotif ? 14 : 0 }}>
+              <div>
+                <div style={{ fontSize: 13, color: TOKENS.text, fontWeight: 500 }}>{lang === 'zh' ? 'Webhook 通知' : 'Webhook Notification'}</div>
+                <div style={{ fontSize: 12, color: TOKENS.textMuted }}>{lang === 'zh' ? '傳送通知至 Teams、Slack、Line Notify 等' : 'Send alerts to Teams, Slack, Line Notify, etc.'}</div>
+              </div>
+              <button style={toggleStyle(webNotif)} onClick={() => setWebNotif(!webNotif)}><div style={toggleKnob(webNotif)} /></button>
+            </div>
+            {webNotif && (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 12, padding: 14, background: TOKENS.bg, borderRadius: TOKENS.radius, border: `1px solid ${TOKENS.border}` }}>
+                <SelectField label={lang === 'zh' ? '平台' : 'Platform'} value={webhookType} onChange={v => { setWebhookType(v); if (v === 'line') setWebhookUrl('https://notify-api.line.me/api/notify'); }} options={[
+                  { value: 'teams',   label: 'Microsoft Teams' },
+                  { value: 'slack',   label: 'Slack' },
+                  { value: 'line',    label: 'Line Notify' },
+                  { value: 'generic', label: lang === 'zh' ? 'Generic JSON' : 'Generic JSON' },
+                ]} />
+                <InputField label="Webhook URL *" value={webhookUrl} onChange={setWebhookUrl}
+                  placeholder={webhookType === 'teams' ? 'https://outlook.office.com/webhook/...' : webhookType === 'slack' ? 'https://hooks.slack.com/services/...' : webhookType === 'line' ? 'https://notify-api.line.me/api/notify' : 'https://...'} />
+                {webhookType === 'line' && (
+                  <InputField label="Line Notify Token *" value={webhookToken} onChange={setWebhookToken} type="password" placeholder="your-line-notify-token" />
+                )}
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                  <button onClick={handleTestWebhook} disabled={testingWebhook}
+                    style={{ padding: '7px 16px', background: testingWebhook ? TOKENS.border : TOKENS.bgInput, border: `1px solid ${testWebhookRes === 'ok' ? TOKENS.low : testWebhookRes && testWebhookRes !== 'ok' ? TOKENS.danger : TOKENS.border}`, borderRadius: TOKENS.radiusSm, color: testWebhookRes === 'ok' ? TOKENS.low : testWebhookRes && testWebhookRes !== 'ok' ? TOKENS.danger : TOKENS.textSecondary, fontSize: 12, cursor: testingWebhook ? 'not-allowed' : 'pointer', fontFamily: TOKENS.font }}>
+                    {testingWebhook ? (lang === 'zh' ? '傳送中...' : 'Sending...') : (lang === 'zh' ? '測試傳送' : 'Send Test')}
+                  </button>
+                  {testWebhookRes === 'ok' && <span style={{ fontSize: 12, color: TOKENS.low }}>✓ {lang === 'zh' ? 'Webhook 傳送成功' : 'Webhook delivered'}</span>}
+                  {testWebhookRes && testWebhookRes !== 'ok' && <span style={{ fontSize: 12, color: TOKENS.danger }}>✗ {testWebhookRes}</span>}
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Threshold (shared) */}
           <SelectField label={t(lang, 'notifThreshold')} value={notifThresh} onChange={setNotifThresh} options={[
             { value: 'CRITICAL', label: lang === 'zh' ? '僅嚴重 (Critical)' : 'Critical only' },
             { value: 'HIGH',     label: lang === 'zh' ? '高以上 (High+)'    : 'High and above' },

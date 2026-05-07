@@ -75,10 +75,12 @@ export const aiApi = {
 
 // Settings
 export const settingsApi = {
-  get:        ()     => api.get('/settings'),
-  update:     (data) => api.put('/settings', data),
-  testSource: (id)   => api.post(`/settings/sources/${id}/test`),
-  syncSource: (id)   => api.post(`/settings/sources/${id}/sync`),
+  get:          ()     => api.get('/settings'),
+  update:       (data) => api.put('/settings', data),
+  testEmail:    ()     => api.post('/settings/test-email'),
+  testWebhook:  ()     => api.post('/settings/test-webhook'),
+  testSource:   (id)   => api.post(`/settings/sources/${id}/test`),
+  syncSource:   (id)   => api.post(`/settings/sources/${id}/sync`),
 };
 
 export default api;

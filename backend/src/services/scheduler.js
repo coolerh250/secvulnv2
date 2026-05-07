@@ -1,5 +1,6 @@
 const pool = require('../db');
 const { sync, SYNC_SOURCES } = require('./nvdSync');
+const { notify } = require('./notificationService');
 
 const FREQ_MS = {
   '1h':    1 * 60 * 60 * 1000,
@@ -37,13 +38,16 @@ async function runDueSources() {
         const result = await sync(src.id, settings);
         const nowStr = new Date().toISOString().slice(0, 16).replace('T', ' ');
         // Refresh settings from DB in case another process updated them
-        const { rows: fresh } = await pool.query('SELECT data_sources FROM settings WHERE id = 1');
+        const { rows: fresh } = await pool.query('SELECT * FROM settings WHERE id = 1');
         const freshSources = (fresh[0]?.data_sources || []).map(s =>
           s.id === src.id ? { ...s, lastSync: nowStr, syncStatus: 'ok' } : s
         );
         await pool.query('UPDATE settings SET data_sources = $1, updated_at = NOW() WHERE id = 1',
           [JSON.stringify(freshSources)]);
         console.log(`[scheduler] "${src.id}" done — ${result.inserted} new, ${result.updated} updated, ${result.removed} removed`);
+        if (result.inserted > 0) {
+          await notify(fresh[0], src.id);
+        }
       } catch (err) {
         console.error(`[scheduler] Sync failed for "${src.id}":`, err.message);
         try {
