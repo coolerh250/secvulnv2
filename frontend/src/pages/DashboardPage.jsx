@@ -52,7 +52,7 @@ export function DashboardPage({ onNavigate }) {
         ...v,
         daysLeft: Math.ceil((new Date(v.review_date) - new Date()) / 86400000),
       })));
-      setTopVulns([...vl.data].sort((a, b) => b.cvss - a.cvss).slice(0, 5));
+      setTopVulns([...vl.data.data].sort((a, b) => b.cvss - a.cvss).slice(0, 5));
     }).finally(() => { setLoading(false); setRefreshing(false); });
   };
 
@@ -322,8 +322,9 @@ export function DashboardPage({ onNavigate }) {
           <div style={{ fontSize: 14, fontWeight: 600, color: TOKENS.text, marginBottom: 16 }}>{t(lang, 'vendorDist')}</div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 12, marginTop: 8 }}>
             {['Fortinet','Palo Alto'].map(vendor => {
-              const cnt = topVulns.filter(v => v.vendor === vendor).length;
-              const pct = topVulns.length > 0 ? (cnt / topVulns.length) * 100 : 0;
+              const cnt = stats?.vendorCounts?.[vendor] || 0;
+              const total = stats?.total || 0;
+              const pct = total > 0 ? (cnt / total) * 100 : 0;
               return (
                 <div key={vendor} onClick={() => handleJumpSearch({ vendor })} style={{ cursor: 'pointer' }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, color: TOKENS.textSecondary, marginBottom: 4 }}>
