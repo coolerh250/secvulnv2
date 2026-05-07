@@ -44,6 +44,7 @@ export const dashboardApi = {
 
 // Devices
 export const deviceApi = {
+  getTypes: ()         => api.get('/devices/types'),
   list:    ()          => api.get('/devices'),
   create:  (data)      => api.post('/devices', data),
   update:  (id, data)  => api.put(`/devices/${id}`, data),

@@ -4,6 +4,7 @@ const ctrl = require('../controllers/deviceController');
 
 router.use(authMiddleware);
 
+router.get('/types',     ctrl.getDeviceTypes);
 router.get('/',          ctrl.list);
 router.post('/',         requireRole('superadmin', 'admin'), ctrl.create);
 router.put('/:id',       requireRole('superadmin', 'admin'), ctrl.update);

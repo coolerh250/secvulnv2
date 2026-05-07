@@ -11,4 +11,9 @@ const DEVICE_TYPE_PRODUCTS = {
   'Panorama':      ['panorama', 'pan-os'],
 };
 
-module.exports = { DEVICE_TYPE_PRODUCTS };
+const DEVICE_TYPE_OPTIONS = {
+  'Fortinet':  ['FortiGate', 'FortiWiFi', 'FortiAnalyzer', 'FortiManager', 'FortiProxy', 'FortiADC', 'FortiMail', 'FortiWeb'],
+  'Palo Alto': ['PA-Series', 'Panorama'],
+};
+
+module.exports = { DEVICE_TYPE_PRODUCTS, DEVICE_TYPE_OPTIONS };

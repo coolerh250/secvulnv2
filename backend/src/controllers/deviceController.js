@@ -1,5 +1,5 @@
 const pool = require('../db');
-const { DEVICE_TYPE_PRODUCTS } = require('../lib/deviceTypes');
+const { DEVICE_TYPE_PRODUCTS, DEVICE_TYPE_OPTIONS } = require('../lib/deviceTypes');
 
 function isProductMatch(deviceType, affectedProducts, productText) {
   if (!deviceType) return true;
@@ -428,7 +428,12 @@ async function setDeviceVulnRiskAcceptance(req, res, next) {
   }
 }
 
+function getDeviceTypes(req, res) {
+  res.json({ products: DEVICE_TYPE_PRODUCTS, options: DEVICE_TYPE_OPTIONS });
+}
+
 module.exports = {
   list, create, update, remove, scan, scanAll, recalcForVendor,
   getDeviceVulns, updateDeviceVulnStatus, addDeviceVulnNote, setDeviceVulnRiskAcceptance,
+  getDeviceTypes,
 };

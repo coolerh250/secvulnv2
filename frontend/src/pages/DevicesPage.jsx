@@ -7,90 +7,19 @@ import { Card, Btn, InputField, SelectField, Badge, CvssBar, VulnStatusBadge } f
 import { Icons } from '../components/Icons';
 import { VulnDetailModal } from '../components/VulnDetailModal';
 
-// ---------------------------------------------------------------------------
-// Firmware version matching (mirrors backend deviceController logic)
-// ---------------------------------------------------------------------------
-function parseVer(str) {
-  return String(str).replace(/^v/i, '').split('.').map(n => parseInt(n, 10) || 0);
-}
-function cmpVer(a, b) {
-  const len = Math.max(a.length, b.length);
-  for (let i = 0; i < len; i++) {
-    const d = (a[i] || 0) - (b[i] || 0);
-    if (d !== 0) return d < 0 ? -1 : 1;
-  }
-  return 0;
-}
-function affectsDevice(deviceFirmware, firmwareVersions) {
-  if (!deviceFirmware) return true;
-  if (!firmwareVersions || firmwareVersions.length === 0) return true;
-  const dev = parseVer(deviceFirmware);
-  for (const range of firmwareVersions) {
-    const parts = range.split(/\s[–-]\s/); // en-dash or hyphen
-    if (parts.length === 1) {
-      if (cmpVer(dev, parseVer(parts[0].trim())) === 0) return true;
-    } else {
-      const start = parseVer(parts[0].trim());
-      const endStr = parts[1].trim();
-      const exclusive = endStr.startsWith('<');
-      const end = parseVer(endStr.replace('<', '').trim());
-      const inRange = cmpVer(dev, start) >= 0 &&
-        (exclusive ? cmpVer(dev, end) < 0 : cmpVer(dev, end) <= 0);
-      if (inRange) return true;
-    }
-  }
-  return false;
-}
-
-// ---------------------------------------------------------------------------
-// Device type / product matching (mirrors backend deviceController logic)
-// ---------------------------------------------------------------------------
-
-const DEVICE_TYPE_PRODUCTS = {
-  'FortiGate':     ['fortios', 'fortios ips engine'],
-  'FortiWiFi':     ['fortios', 'fortiwifi'],
-  'FortiAnalyzer': ['fortianalyzer'],
-  'FortiManager':  ['fortimanager'],
-  'FortiProxy':    ['fortiproxy'],
-  'FortiADC':      ['fortiadc'],
-  'FortiMail':     ['fortimail'],
-  'FortiWeb':      ['fortiweb'],
-  'PA-Series':     ['pan-os'],
-  'Panorama':      ['panorama', 'pan-os'],
-};
-
-const DEVICE_TYPE_OPTIONS = {
-  'Fortinet':  ['FortiGate', 'FortiWiFi', 'FortiAnalyzer', 'FortiManager', 'FortiProxy', 'FortiADC', 'FortiMail', 'FortiWeb'],
-  'Palo Alto': ['PA-Series', 'Panorama'],
-};
-
-function isProductMatch(deviceType, affectedProducts, productText) {
-  if (!deviceType) return true;
-  const expected = DEVICE_TYPE_PRODUCTS[deviceType];
-  if (!expected) return true;
-  if (affectedProducts && affectedProducts.length > 0) {
-    const ap = affectedProducts.map(p => String(p).toLowerCase());
-    return expected.some(e => ap.some(p => p === e || p.startsWith(e)));
-  }
-  if (productText) {
-    const lower = productText.toLowerCase();
-    return expected.some(e => lower.includes(e));
-  }
-  return true;
-}
 
 // ---------------------------------------------------------------------------
 // Sub-components
 // ---------------------------------------------------------------------------
 
-function DeviceForm({ form, setForm, lang, onSave, onCancel }) {
-  const typeOpts = (DEVICE_TYPE_OPTIONS[form.vendor] || []).map(v => ({ value: v, label: v }));
+function DeviceForm({ form, setForm, lang, onSave, onCancel, deviceTypeOptions }) {
+  const typeOpts = (deviceTypeOptions[form.vendor] || []).map(v => ({ value: v, label: v }));
   return (
     <Card style={{ marginBottom: 16 }}>
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 12, marginBottom: 12 }}>
         <InputField label={t(lang, 'deviceName')} value={form.name} onChange={v => setForm({ ...form, name: v })} placeholder={lang === 'zh' ? '例：總部防火牆' : 'e.g. HQ Firewall'} />
         <SelectField label={t(lang, 'vendor')} value={form.vendor}
-          onChange={v => setForm({ ...form, vendor: v, device_type: (DEVICE_TYPE_OPTIONS[v] || [])[0] || '' })}
+          onChange={v => setForm({ ...form, vendor: v, device_type: (deviceTypeOptions[v] || [])[0] || '' })}
           options={[{ value: 'Fortinet', label: 'Fortinet' }, { value: 'Palo Alto', label: 'Palo Alto' }]} />
         <SelectField label={lang === 'zh' ? '設備種類' : 'Device Type'} value={form.device_type}
           onChange={v => setForm({ ...form, device_type: v })}
@@ -130,8 +59,9 @@ export function DevicesPage({ onNavigate }) {
   const { can } = useAuth();
   const canModify = can('devices', 'modify');
 
-  const [devices,     setDevices]     = useState([]);
-  const [loading,     setLoading]     = useState(true);
+  const [devices,          setDevices]          = useState([]);
+  const [deviceTypeOptions, setDeviceTypeOptions] = useState({});
+  const [loading,          setLoading]          = useState(true);
   const [showAdd,     setShowAdd]     = useState(false);
   const [editId,      setEditId]      = useState(null);
   const [scanning,    setScanning]    = useState(null);
@@ -145,7 +75,13 @@ export function DevicesPage({ onNavigate }) {
   const [deviceSelected,   setDeviceSelected]   = useState(null);  // selected vuln in expansion
 
   useEffect(() => {
-    deviceApi.list().then(res => setDevices(res.data)).finally(() => setLoading(false));
+    Promise.all([
+      deviceApi.list(),
+      deviceApi.getTypes(),
+    ]).then(([devRes, typesRes]) => {
+      setDevices(devRes.data);
+      setDeviceTypeOptions(typesRes.data.options);
+    }).finally(() => setLoading(false));
   }, []);
 
   // ---- Device CRUD ----
@@ -270,8 +206,8 @@ export function DevicesPage({ onNavigate }) {
         )}
       </div>
 
-      {showAdd && <DeviceForm form={form} setForm={setForm} lang={lang} onSave={handleAdd}      onCancel={() => setShowAdd(false)} />}
-      {editId  && <DeviceForm form={form} setForm={setForm} lang={lang} onSave={handleSaveEdit} onCancel={() => setEditId(null)}  />}
+      {showAdd && <DeviceForm form={form} setForm={setForm} lang={lang} onSave={handleAdd}      onCancel={() => setShowAdd(false)} deviceTypeOptions={deviceTypeOptions} />}
+      {editId  && <DeviceForm form={form} setForm={setForm} lang={lang} onSave={handleSaveEdit} onCancel={() => setEditId(null)}   deviceTypeOptions={deviceTypeOptions} />}
 
       {/* Summary cards */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12 }}>
