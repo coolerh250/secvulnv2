@@ -92,7 +92,7 @@ async function runDueReports() {
 
       console.log(`[scheduler] Running scheduled report "${sched.name || sched.id}"`);
       try {
-        const { getReportData, buildFormat1, buildFormat2, buildFormat3, generatePdf } = require('../controllers/reportController');
+        const { buildHtmlForParams, generatePdf } = require('../controllers/reportController');
         const from = sched.periodType === 'custom'
           ? sched.periodFrom
           : new Date(now - parseInt(sched.periodType) * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
@@ -100,9 +100,7 @@ async function runDueReports() {
           ? sched.periodTo
           : new Date().toISOString().slice(0, 10);
 
-        const data = await getReportData(sched.devices, from, to);
-        const builders = { 1: buildFormat1, 2: buildFormat2, 3: buildFormat3 };
-        const html = (builders[sched.format] || buildFormat1)(data, 'zh', from, to);
+        const html = await buildHtmlForParams(sched.devices, from, to, sched.format || 1, 'zh');
         const pdfBuffer = await generatePdf(html);
         const label = `${sched.name || sched.id}_${to}`;
         await sendReportEmail(settings, pdfBuffer, sched.recipient, label);

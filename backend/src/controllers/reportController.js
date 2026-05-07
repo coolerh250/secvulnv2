@@ -1,4 +1,5 @@
 const pool = require('../db');
+const { sendReportEmail } = require('../services/notificationService');
 
 const SEV_COLOR = { CRITICAL: '#e53935', HIGH: '#f57c00', MEDIUM: '#f9a825', LOW: '#43a047' };
 const STATUS_COLOR = { pending: '#f57c00', fixed: '#43a047', accepted: '#7b1fa2', deferred: '#1976d2' };
@@ -419,7 +420,6 @@ async function email(req, res, next) {
     const html = await buildHtmlForParams(devices, from, to, parseInt(format), lang);
     const pdfBuffer = await generatePdf(html);
 
-    const { sendReportEmail } = require('../services/notificationService');
     await sendReportEmail(settings, pdfBuffer, recipient, `${from} ～ ${to}`);
     res.json({ ok: true });
   } catch (err) {
