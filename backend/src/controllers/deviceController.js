@@ -36,6 +36,41 @@ function cmpVer(a, b) {
   return 0;
 }
 
+// Returns true when firmwareVersions contains at least one range with an upper
+// bound, which implies a fixed firmware version exists above that bound.
+function hasKnownFix(firmwareVersions) {
+  if (!firmwareVersions || firmwareVersions.length === 0) return false;
+  return firmwareVersions.some(range => range.split(/\s[–-]\s/).length >= 2);
+}
+
+// Determine device status from the count of unresolved vulns and the full set
+// of matched (affected) vulns.
+//   upToDate   — no unresolved vulns
+//   updateAvail — all matched vulns have a known fix version (range with upper bound)
+//   vulnerable  — at least one matched vuln has no known fix
+function computeStatus(vuln_count, matchedVulns) {
+  if (vuln_count === 0) return 'upToDate';
+  return matchedVulns.every(v => hasKnownFix(v.firmware_versions))
+    ? 'updateAvail'
+    : 'vulnerable';
+}
+
+// Used when we only have vuln_count (e.g. after a manual handle_status change)
+// and need to re-derive status by re-querying the DB for this device's matched vulns.
+async function getDeviceStatus(device, vuln_count) {
+  if (vuln_count === 0) return 'upToDate';
+  const { rows } = await pool.query(
+    `SELECT firmware_versions, affected_products, product
+     FROM vulnerabilities WHERE vendor = $1 AND handle_status != 'fixed'`,
+    [device.vendor]
+  );
+  const matched = rows.filter(r =>
+    isProductMatch(device.device_type, r.affected_products, r.product) &&
+    affectsDevice(device.firmware, r.firmware_versions)
+  );
+  return computeStatus(vuln_count, matched);
+}
+
 // Range format: "7.0.0 – <7.0.15" | "7.0.0 – 7.0.14" | "7.4.0"
 // Empty array → no CPE data → conservatively assume affected
 function affectsDevice(deviceFirmware, firmwareVersions) {
@@ -165,15 +200,14 @@ async function scan(req, res, next) {
        FROM vulnerabilities WHERE vendor = $1 AND handle_status != 'fixed'`,
       [device.vendor]
     );
-    const matchedIds = vulns
-      .filter(r =>
-        isProductMatch(device.device_type, r.affected_products, r.product) &&
-        affectsDevice(device.firmware, r.firmware_versions)
-      )
-      .map(r => r.id);
+    const matchedVulns = vulns.filter(r =>
+      isProductMatch(device.device_type, r.affected_products, r.product) &&
+      affectsDevice(device.firmware, r.firmware_versions)
+    );
+    const matchedIds = matchedVulns.map(r => r.id);
 
     const vuln_count = await syncDeviceVulns(device.id, matchedIds);
-    const status = vuln_count > 0 ? 'vulnerable' : 'upToDate';
+    const status = computeStatus(vuln_count, matchedVulns);
 
     const { rows } = await pool.query(
       `UPDATE devices SET status=$1, vuln_count=$2, last_check=CURRENT_DATE, updated_at=NOW()
@@ -204,15 +238,14 @@ async function scanAll(req, res, next) {
 
     const updated = await Promise.all(devices.map(async device => {
       const vendorVulns = vulnsByVendor[device.vendor] || [];
-      const matchedIds = vendorVulns
-        .filter(r =>
-          isProductMatch(device.device_type, r.affected_products, r.product) &&
-          affectsDevice(device.firmware, r.firmware_versions)
-        )
-        .map(r => r.id);
+      const matchedVulns = vendorVulns.filter(r =>
+        isProductMatch(device.device_type, r.affected_products, r.product) &&
+        affectsDevice(device.firmware, r.firmware_versions)
+      );
+      const matchedIds = matchedVulns.map(r => r.id);
 
       const vuln_count = await syncDeviceVulns(device.id, matchedIds);
-      const status = vuln_count > 0 ? 'vulnerable' : 'upToDate';
+      const status = computeStatus(vuln_count, matchedVulns);
       const { rows } = await pool.query(
         `UPDATE devices SET status=$1, vuln_count=$2, last_check=CURRENT_DATE, updated_at=NOW()
          WHERE id=$3 RETURNING *`,
@@ -239,14 +272,13 @@ async function recalcForVendor(vendor) {
     ),
   ]);
   await Promise.all(devices.map(async device => {
-    const matchedIds = vulns
-      .filter(r =>
-        isProductMatch(device.device_type, r.affected_products, r.product) &&
-        affectsDevice(device.firmware, r.firmware_versions)
-      )
-      .map(r => r.id);
+    const matchedVulns = vulns.filter(r =>
+      isProductMatch(device.device_type, r.affected_products, r.product) &&
+      affectsDevice(device.firmware, r.firmware_versions)
+    );
+    const matchedIds = matchedVulns.map(r => r.id);
     const vuln_count = await syncDeviceVulns(device.id, matchedIds);
-    const status = vuln_count > 0 ? 'vulnerable' : 'upToDate';
+    const status = computeStatus(vuln_count, matchedVulns);
     await pool.query(
       `UPDATE devices SET status=$1, vuln_count=$2, last_check=CURRENT_DATE, updated_at=NOW()
        WHERE id=$3`,
@@ -322,7 +354,8 @@ async function updateDeviceVulnStatus(req, res, next) {
        WHERE device_id = $1 AND handle_status != 'fixed'`,
       [id]
     );
-    const status = cnt > 0 ? 'vulnerable' : 'upToDate';
+    const { rows: [device] } = await pool.query('SELECT * FROM devices WHERE id = $1', [id]);
+    const status = await getDeviceStatus(device, cnt);
     await pool.query(
       `UPDATE devices SET status = $1, vuln_count = $2, updated_at = NOW() WHERE id = $3`,
       [status, cnt, id]
@@ -382,7 +415,8 @@ async function setDeviceVulnRiskAcceptance(req, res, next) {
        WHERE device_id = $1 AND handle_status != 'fixed'`,
       [id]
     );
-    const devStatus = cnt > 0 ? 'vulnerable' : 'upToDate';
+    const { rows: [device] } = await pool.query('SELECT * FROM devices WHERE id = $1', [id]);
+    const devStatus = await getDeviceStatus(device, cnt);
     await pool.query(
       `UPDATE devices SET status = $1, vuln_count = $2, updated_at = NOW() WHERE id = $3`,
       [devStatus, cnt, id]
