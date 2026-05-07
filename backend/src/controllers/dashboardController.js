@@ -2,10 +2,11 @@ const pool = require('../db');
 
 async function stats(req, res, next) {
   try {
-    const [{ rows: vulnRows }, { rows: deviceRows }, { rows: vendorRows }] = await Promise.all([
+    const [{ rows: vulnRows }, { rows: deviceRows }, { rows: vendorRows }, { rows: recentRows }] = await Promise.all([
       pool.query(`SELECT severity, handle_status FROM vulnerabilities`),
       pool.query(`SELECT status FROM devices`),
       pool.query(`SELECT vendor, COUNT(*)::int AS cnt FROM vulnerabilities GROUP BY vendor`),
+      pool.query(`SELECT severity, COUNT(*)::int AS cnt FROM vulnerabilities WHERE published >= CURRENT_DATE - INTERVAL '30 days' GROUP BY severity`),
     ]);
 
     const severity = { CRITICAL: 0, HIGH: 0, MEDIUM: 0, LOW: 0 };
@@ -21,6 +22,10 @@ async function stats(req, res, next) {
     const vendorCounts = {};
     vendorRows.forEach(r => { vendorCounts[r.vendor] = r.cnt; });
 
+    const recent30BySeverity = { CRITICAL: 0, HIGH: 0, MEDIUM: 0, LOW: 0 };
+    recentRows.forEach(r => { if (recent30BySeverity[r.severity] !== undefined) recent30BySeverity[r.severity] = r.cnt; });
+    const recent30Total = Object.values(recent30BySeverity).reduce((a, b) => a + b, 0);
+
     res.json({
       total:         vulnRows.length,
       severity,
@@ -28,6 +33,7 @@ async function stats(req, res, next) {
       affectedDevices: deviceStatus.vulnerable,
       deviceStatus,
       vendorCounts,
+      recent30: { total: recent30Total, bySeverity: recent30BySeverity },
     });
   } catch (err) {
     next(err);

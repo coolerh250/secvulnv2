@@ -217,7 +217,7 @@ export function DashboardPage({ onNavigate }) {
         </div>
       </Card>
 
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 16 }}>
         {/* Upcoming Reviews */}
         <Card>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 16 }}>
@@ -274,6 +274,34 @@ export function DashboardPage({ onNavigate }) {
               </div>
             ))}
           </div>
+        </Card>
+
+        {/* Recent 30 Days */}
+        <Card>
+          <div style={{ fontSize: 14, fontWeight: 600, color: TOKENS.text, marginBottom: 4 }}>{lang === 'zh' ? '近 30 天發布弱點' : 'Last 30 Days'}</div>
+          <div style={{ fontSize: 32, fontWeight: 700, fontFamily: TOKENS.mono, color: TOKENS.info, marginBottom: 16 }}>{stats?.recent30?.total || 0}</div>
+          {(stats?.recent30?.total || 0) === 0 ? (
+            <div style={{ fontSize: 13, color: TOKENS.textMuted, padding: '12px 0' }}>{lang === 'zh' ? '近 30 天無新弱點' : 'No new vulnerabilities'}</div>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+              {[{ l: 'Critical', lz: '嚴重', c: TOKENS.danger, sev: 'CRITICAL' }, { l: 'High', lz: '高', c: TOKENS.warning, sev: 'HIGH' }, { l: 'Medium', lz: '中', c: TOKENS.medium, sev: 'MEDIUM' }, { l: 'Low', lz: '低', c: TOKENS.low, sev: 'LOW' }].map(i => {
+                const cnt = stats?.recent30?.bySeverity?.[i.sev] || 0;
+                const pct = stats?.recent30?.total > 0 ? (cnt / stats.recent30.total) * 100 : 0;
+                return (
+                  <div key={i.sev} onClick={() => handleJumpSearch({ severity: i.sev })} style={{ cursor: 'pointer' }}
+                    onMouseEnter={e => e.currentTarget.style.opacity = '0.8'} onMouseLeave={e => e.currentTarget.style.opacity = '1'}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, color: TOKENS.textSecondary, marginBottom: 4 }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}><span style={{ width: 8, height: 8, borderRadius: 2, background: i.c }} />{lang === 'zh' ? i.lz : i.l}</div>
+                      <span style={{ fontFamily: TOKENS.mono, color: i.c, fontWeight: 600 }}>{cnt}</span>
+                    </div>
+                    <div style={{ height: 6, background: TOKENS.border, borderRadius: 4, overflow: 'hidden' }}>
+                      <div style={{ width: `${pct}%`, height: '100%', background: i.c, borderRadius: 4 }} />
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
         </Card>
       </div>
 
