@@ -226,7 +226,7 @@ async function notify(settings, sourceId) {
       paloalto: 'Palo Alto Networks',
     }[sourceId] || sourceId || '排程同步';
 
-    await Promise.allSettled([
+    await Promise.all([
       sendEmailDigest(settings, vulns, sourceLabel).catch(err =>
         console.error('[notif] Email failed:', err.message)),
       sendWebhookDigest(settings, vulns, sourceLabel).catch(err =>

@@ -115,29 +115,19 @@ export function SettingsPage({ onNavigate }) {
     setNewSrc({ name: '', desc: '', url: '', apiKey: '', syncFreq: '24h' }); setShowAddSrc(false);
   };
 
-  const handleTestEmail = async () => {
-    setTestingEmail(true); setTestEmailRes(null);
+  const makeTestHandler = (apiFn, setTesting, setResult) => async () => {
+    setTesting(true); setResult(null);
     try {
-      const res = await settingsApi.testEmail();
-      setTestEmailRes(res.data.ok ? 'ok' : res.data.error || 'fail');
+      const res = await apiFn();
+      setResult(res.data.ok ? 'ok' : res.data.error || 'fail');
     } catch (err) {
-      setTestEmailRes(err.response?.data?.error || 'fail');
+      setResult(err.response?.data?.error || 'fail');
     } finally {
-      setTestingEmail(false);
+      setTesting(false);
     }
   };
-
-  const handleTestWebhook = async () => {
-    setTestingWebhook(true); setTestWebhookRes(null);
-    try {
-      const res = await settingsApi.testWebhook();
-      setTestWebhookRes(res.data.ok ? 'ok' : res.data.error || 'fail');
-    } catch (err) {
-      setTestWebhookRes(err.response?.data?.error || 'fail');
-    } finally {
-      setTestingWebhook(false);
-    }
-  };
+  const handleTestEmail   = makeTestHandler(settingsApi.testEmail,   setTestingEmail,   setTestEmailRes);
+  const handleTestWebhook = makeTestHandler(settingsApi.testWebhook, setTestingWebhook, setTestWebhookRes);
 
   const handleSave = async () => {
     await settingsApi.update({
@@ -155,8 +145,9 @@ export function SettingsPage({ onNavigate }) {
     setSaved(true); setTimeout(() => setSaved(false), 2000);
   };
 
-  const toggleStyle = (on) => ({ width: 40, height: 22, borderRadius: 11, background: on ? TOKENS.primary : TOKENS.border, cursor: 'pointer', position: 'relative', transition: 'background 0.2s', border: 'none', padding: 0, flexShrink: 0 });
-  const toggleKnob  = (on) => ({ position: 'absolute', top: 2, left: on ? 20 : 2, width: 18, height: 18, borderRadius: '50%', background: '#fff', transition: 'left 0.2s', boxShadow: '0 1px 3px rgba(0,0,0,0.3)' });
+  const toggleStyle   = (on) => ({ width: 40, height: 22, borderRadius: 11, background: on ? TOKENS.primary : TOKENS.border, cursor: 'pointer', position: 'relative', transition: 'background 0.2s', border: 'none', padding: 0, flexShrink: 0 });
+  const toggleKnob    = (on) => ({ position: 'absolute', top: 2, left: on ? 20 : 2, width: 18, height: 18, borderRadius: '50%', background: '#fff', transition: 'left 0.2s', boxShadow: '0 1px 3px rgba(0,0,0,0.3)' });
+  const testBtnStyle  = (testing, result) => ({ padding: '7px 16px', background: testing ? TOKENS.border : TOKENS.bgInput, border: `1px solid ${result === 'ok' ? TOKENS.low : result ? TOKENS.danger : TOKENS.border}`, borderRadius: TOKENS.radiusSm, color: result === 'ok' ? TOKENS.low : result ? TOKENS.danger : TOKENS.textSecondary, fontSize: 12, cursor: testing ? 'not-allowed' : 'pointer', fontFamily: TOKENS.font });
 
   const syncFreqOptions = [
     { value: '1h',     label: lang === 'zh' ? '每 1 小時'  : 'Every 1 hour' },
@@ -301,7 +292,7 @@ export function SettingsPage({ onNavigate }) {
                 <InputField label={lang === 'zh' ? '寄件人（選填）' : 'From Address (optional)'} value={smtpFrom} onChange={setSmtpFrom} placeholder='SecVuln <no-reply@example.com>' />
                 <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                   <button onClick={handleTestEmail} disabled={testingEmail}
-                    style={{ padding: '7px 16px', background: testingEmail ? TOKENS.border : TOKENS.bgInput, border: `1px solid ${testEmailRes === 'ok' ? TOKENS.low : testEmailRes && testEmailRes !== 'ok' ? TOKENS.danger : TOKENS.border}`, borderRadius: TOKENS.radiusSm, color: testEmailRes === 'ok' ? TOKENS.low : testEmailRes && testEmailRes !== 'ok' ? TOKENS.danger : TOKENS.textSecondary, fontSize: 12, cursor: testingEmail ? 'not-allowed' : 'pointer', fontFamily: TOKENS.font }}>
+                    style={testBtnStyle(testingEmail, testEmailRes)}>
                     {testingEmail ? (lang === 'zh' ? '傳送中...' : 'Sending...') : (lang === 'zh' ? '測試寄送' : 'Send Test')}
                   </button>
                   {testEmailRes === 'ok' && <span style={{ fontSize: 12, color: TOKENS.low }}>✓ {lang === 'zh' ? '測試郵件已寄出' : 'Test email sent'}</span>}
@@ -326,7 +317,7 @@ export function SettingsPage({ onNavigate }) {
                   { value: 'teams',   label: 'Microsoft Teams' },
                   { value: 'slack',   label: 'Slack' },
                   { value: 'line',    label: 'Line Notify' },
-                  { value: 'generic', label: lang === 'zh' ? 'Generic JSON' : 'Generic JSON' },
+                  { value: 'generic', label: 'Generic JSON' },
                 ]} />
                 <InputField label="Webhook URL *" value={webhookUrl} onChange={setWebhookUrl}
                   placeholder={webhookType === 'teams' ? 'https://outlook.office.com/webhook/...' : webhookType === 'slack' ? 'https://hooks.slack.com/services/...' : webhookType === 'line' ? 'https://notify-api.line.me/api/notify' : 'https://...'} />
@@ -335,7 +326,7 @@ export function SettingsPage({ onNavigate }) {
                 )}
                 <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                   <button onClick={handleTestWebhook} disabled={testingWebhook}
-                    style={{ padding: '7px 16px', background: testingWebhook ? TOKENS.border : TOKENS.bgInput, border: `1px solid ${testWebhookRes === 'ok' ? TOKENS.low : testWebhookRes && testWebhookRes !== 'ok' ? TOKENS.danger : TOKENS.border}`, borderRadius: TOKENS.radiusSm, color: testWebhookRes === 'ok' ? TOKENS.low : testWebhookRes && testWebhookRes !== 'ok' ? TOKENS.danger : TOKENS.textSecondary, fontSize: 12, cursor: testingWebhook ? 'not-allowed' : 'pointer', fontFamily: TOKENS.font }}>
+                    style={testBtnStyle(testingWebhook, testWebhookRes)}>
                     {testingWebhook ? (lang === 'zh' ? '傳送中...' : 'Sending...') : (lang === 'zh' ? '測試傳送' : 'Send Test')}
                   </button>
                   {testWebhookRes === 'ok' && <span style={{ fontSize: 12, color: TOKENS.low }}>✓ {lang === 'zh' ? 'Webhook 傳送成功' : 'Webhook delivered'}</span>}

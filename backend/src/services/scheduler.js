@@ -38,7 +38,13 @@ async function runDueSources() {
         const result = await sync(src.id, settings);
         const nowStr = new Date().toISOString().slice(0, 16).replace('T', ' ');
         // Refresh settings from DB in case another process updated them
-        const { rows: fresh } = await pool.query('SELECT * FROM settings WHERE id = 1');
+        const { rows: fresh } = await pool.query(
+          `SELECT data_sources,
+                  notif_threshold, notif_email, notif_email_addr,
+                  notif_smtp_host, notif_smtp_port, notif_smtp_user, notif_smtp_pass, notif_smtp_from,
+                  notif_web, notif_webhook_url, notif_webhook_type, notif_webhook_token
+           FROM settings WHERE id = 1`
+        );
         const freshSources = (fresh[0]?.data_sources || []).map(s =>
           s.id === src.id ? { ...s, lastSync: nowStr, syncStatus: 'ok' } : s
         );

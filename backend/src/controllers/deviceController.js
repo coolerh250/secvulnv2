@@ -19,10 +19,6 @@ function isProductMatch(deviceType, affectedProducts, productText) {
   return true;
 }
 
-// ---------------------------------------------------------------------------
-// Firmware version matching helpers
-// ---------------------------------------------------------------------------
-
 function parseVer(str) {
   return String(str).replace(/^v/i, '').split('.').map(n => parseInt(n, 10) || 0);
 }
