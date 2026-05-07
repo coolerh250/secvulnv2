@@ -245,7 +245,8 @@ async function sendReportEmail(settings, pdfBuffer, recipient, label) {
   if (!to) throw new Error('收件地址未設定');
 
   const transporter = createTransport(settings);
-  const filename = `report_${label || new Date().toISOString().slice(0, 10)}.pdf`;
+  const safeLabel = (label || new Date().toISOString().slice(0, 10)).replace(/[^\w\-\.]/g, '_');
+  const filename = `report_${safeLabel}.pdf`;
   await transporter.sendMail({
     from: settings.notif_smtp_from || settings.notif_smtp_user,
     to,

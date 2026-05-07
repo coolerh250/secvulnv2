@@ -1,6 +1,11 @@
 const pool = require('../db');
 const { sendReportEmail } = require('../services/notificationService');
 
+function escapeHtml(s) {
+  if (s == null) return '';
+  return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
+
 const SEV_COLOR = { CRITICAL: '#e53935', HIGH: '#f57c00', MEDIUM: '#f9a825', LOW: '#43a047' };
 const STATUS_COLOR = { pending: '#f57c00', fixed: '#43a047', accepted: '#7b1fa2', deferred: '#1976d2' };
 const STATUS_LABEL = {
@@ -160,7 +165,7 @@ function buildFormat1(data, lang, from, to) {
 
   for (const d of data) {
     const svg = buildDonutSvg(d.statusCounts);
-    const patchRate = d.statusCounts.fixed > 0
+    const patchRate = d.vulns.length > 0
       ? Math.round((d.statusCounts.fixed / d.vulns.length) * 100) : 0;
 
     const legendItems = Object.entries(STATUS_COLOR).map(([k, c]) =>
@@ -171,22 +176,22 @@ function buildFormat1(data, lang, from, to) {
 
     const rows = d.vulns.map(v => `
       <tr>
-        <td style="font-family:monospace;font-weight:700;color:#1a5276;white-space:nowrap">${v.id}</td>
-        <td><span class="sev sev-${v.severity}">${SEV_LABEL[lang][v.severity] || v.severity}</span></td>
+        <td style="font-family:monospace;font-weight:700;color:#1a5276;white-space:nowrap">${escapeHtml(v.id)}</td>
+        <td><span class="sev sev-${v.severity}">${escapeHtml(SEV_LABEL[lang][v.severity] || v.severity)}</span></td>
         <td style="text-align:center">${v.cvss || '—'}</td>
         <td style="white-space:nowrap">${formatDate(v.published)}</td>
-        <td><span class="st st-${v.handle_status}">${STATUS_LABEL[lang][v.handle_status] || v.handle_status}</span></td>
-        <td>${isZh ? (v.title || v.title_en) : (v.title_en || v.title)}</td>
+        <td><span class="st st-${v.handle_status}">${escapeHtml(STATUS_LABEL[lang][v.handle_status] || v.handle_status)}</span></td>
+        <td>${escapeHtml(isZh ? (v.title || v.title_en) : (v.title_en || v.title))}</td>
       </tr>`).join('');
 
     html += `<div class="device-section">
-      <h2>${isZh ? d.name : (d.name_en || d.name)}</h2>
+      <h2>${escapeHtml(isZh ? d.name : (d.name_en || d.name))}</h2>
       <div class="device-header">
         <div class="device-info">
-          <div><strong>${isZh ? '廠商' : 'Vendor'}：</strong>${d.vendor}</div>
-          <div><strong>${isZh ? '設備種類' : 'Type'}：</strong>${d.device_type || '—'}</div>
-          <div><strong>${isZh ? '型號' : 'Model'}：</strong>${d.model || '—'}</div>
-          <div><strong>${isZh ? '韌體版本' : 'Firmware'}：</strong>${d.firmware || '—'}</div>
+          <div><strong>${isZh ? '廠商' : 'Vendor'}：</strong>${escapeHtml(d.vendor)}</div>
+          <div><strong>${isZh ? '設備種類' : 'Type'}：</strong>${escapeHtml(d.device_type) || '—'}</div>
+          <div><strong>${isZh ? '型號' : 'Model'}：</strong>${escapeHtml(d.model) || '—'}</div>
+          <div><strong>${isZh ? '韌體版本' : 'Firmware'}：</strong>${escapeHtml(d.firmware) || '—'}</div>
           <div><strong>${isZh ? '最後掃描' : 'Last Check'}：</strong>${formatDate(d.last_check)}</div>
           <div><strong>${isZh ? '修補率' : 'Patch Rate'}：</strong>${patchRate}%</div>
         </div>
@@ -258,9 +263,9 @@ function buildFormat2(data, lang, from, to) {
           const crit = d.vulns.filter(v => v.severity === 'CRITICAL').length;
           const high = d.vulns.filter(v => v.severity === 'HIGH').length;
           return `<tr>
-            <td><strong>${isZh ? d.name : (d.name_en || d.name)}</strong></td>
-            <td>${d.vendor}<br><span style="color:#888">${d.device_type || '—'}</span></td>
-            <td>${d.model || '—'}<br><span style="color:#888">${d.firmware || '—'}</span></td>
+            <td><strong>${escapeHtml(isZh ? d.name : (d.name_en || d.name))}</strong></td>
+            <td>${escapeHtml(d.vendor)}<br><span style="color:#888">${escapeHtml(d.device_type) || '—'}</span></td>
+            <td>${escapeHtml(d.model) || '—'}<br><span style="color:#888">${escapeHtml(d.firmware) || '—'}</span></td>
             <td style="text-align:center;font-weight:700">${d.vulns.length}</td>
             <td style="text-align:center;color:#e53935;font-weight:700">${crit || '—'}</td>
             <td style="text-align:center;color:#f57c00;font-weight:700">${high || '—'}</td>
@@ -292,10 +297,13 @@ function buildFormat3(data, lang, from, to) {
         vulnMap[v.id] = { ...v, affectedDevices: [] };
       }
       vulnMap[v.id].affectedDevices.push({ name: isZh ? d.name : (d.name_en || d.name), handle_status: v.handle_status });
-      // Escalate severity if needed
       const sev = { CRITICAL: 4, HIGH: 3, MEDIUM: 2, LOW: 1 };
-      if ((sev[v.severity] || 0) > (sev[vulnMap[v.id].severity] || 0)) {
+      const curSev = sev[v.severity] || 0;
+      const storedSev = sev[vulnMap[v.id].severity] || 0;
+      if (curSev > storedSev) {
         vulnMap[v.id].severity = v.severity;
+        vulnMap[v.id].cvss = v.cvss;
+      } else if (curSev === storedSev && (v.cvss || 0) > (vulnMap[v.id].cvss || 0)) {
         vulnMap[v.id].cvss = v.cvss;
       }
     }
@@ -313,14 +321,14 @@ function buildFormat3(data, lang, from, to) {
     const worstStatus = v.affectedDevices.some(d => d.handle_status === 'pending') ? 'pending'
       : v.affectedDevices.some(d => d.handle_status === 'accepted') ? 'accepted'
       : v.affectedDevices.some(d => d.handle_status === 'deferred') ? 'deferred' : 'fixed';
-    const affectedStr = v.affectedDevices.map(d => d.name).join(', ');
+    const affectedStr = v.affectedDevices.map(d => escapeHtml(d.name)).join(', ');
     return `<tr>
-      <td style="font-family:monospace;font-weight:700;color:#1a5276;white-space:nowrap">${v.id}</td>
-      <td><span class="sev sev-${v.severity}">${SEV_LABEL[lang][v.severity] || v.severity}</span></td>
+      <td style="font-family:monospace;font-weight:700;color:#1a5276;white-space:nowrap">${escapeHtml(v.id)}</td>
+      <td><span class="sev sev-${v.severity}">${escapeHtml(SEV_LABEL[lang][v.severity] || v.severity)}</span></td>
       <td style="text-align:center">${v.cvss || '—'}</td>
       <td style="font-size:10px">${affectedStr}</td>
-      <td><span class="st st-${worstStatus}">${STATUS_LABEL[lang][worstStatus]}</span></td>
-      <td>${isZh ? (v.title || v.title_en) : (v.title_en || v.title)}</td>
+      <td><span class="st st-${worstStatus}">${escapeHtml(STATUS_LABEL[lang][worstStatus])}</span></td>
+      <td>${escapeHtml(isZh ? (v.title || v.title_en) : (v.title_en || v.title))}</td>
     </tr>`;
   }).join('');
 
@@ -371,7 +379,6 @@ async function buildHtmlForParams(deviceIds, from, to, format, lang) {
   const data = await getReportData(deviceIds, from, to);
   const builder = format === 2 ? buildFormat2 : format === 3 ? buildFormat3 : buildFormat1;
   const body = builder(data, lang, from, to);
-  const today = new Date().toISOString().slice(0, 10);
   return `<!DOCTYPE html><html lang="${lang}"><head>
     <meta charset="UTF-8"><style>${CSS}</style>
   </head><body>${body}<footer>SecVuln — ${new Date().toLocaleString(lang === 'zh' ? 'zh-TW' : 'en-US')}</footer></body></html>`;
@@ -410,7 +417,9 @@ async function email(req, res, next) {
     if (!devices?.length || !from || !to || !recipient) {
       return res.status(400).json({ error: 'devices, from, to, recipient required' });
     }
-    const { rows } = await pool.query('SELECT * FROM settings WHERE id = 1');
+    const { rows } = await pool.query(
+      'SELECT notif_smtp_host, notif_smtp_port, notif_smtp_user, notif_smtp_pass, notif_smtp_from, notif_email_addr FROM settings WHERE id = 1'
+    );
     if (!rows[0]) return res.status(500).json({ error: 'Settings not found' });
     const settings = rows[0];
     if (!settings.notif_smtp_host || !settings.notif_smtp_user || !settings.notif_smtp_pass) {
@@ -423,7 +432,7 @@ async function email(req, res, next) {
     await sendReportEmail(settings, pdfBuffer, recipient, `${from} ～ ${to}`);
     res.json({ ok: true });
   } catch (err) {
-    res.json({ ok: false, error: err.message });
+    res.status(500).json({ ok: false, error: err.message });
   }
 }
 

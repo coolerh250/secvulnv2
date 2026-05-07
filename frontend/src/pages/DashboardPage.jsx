@@ -288,7 +288,7 @@ export function DashboardPage({ onNavigate }) {
                 const cnt = stats?.recent30?.bySeverity?.[i.sev] || 0;
                 const pct = stats?.recent30?.total > 0 ? (cnt / stats.recent30.total) * 100 : 0;
                 return (
-                  <div key={i.sev} onClick={() => handleJumpSearch({ severity: i.sev })} style={{ cursor: 'pointer' }}
+                  <div key={i.sev} onClick={() => handleJumpSearch({ severity: i.sev, date_from: new Date(Date.now() - 30 * 86400000).toISOString().slice(0, 10) })} style={{ cursor: 'pointer' }}
                     onMouseEnter={e => e.currentTarget.style.opacity = '0.8'} onMouseLeave={e => e.currentTarget.style.opacity = '1'}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, color: TOKENS.textSecondary, marginBottom: 4 }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}><span style={{ width: 8, height: 8, borderRadius: 2, background: i.c }} />{lang === 'zh' ? i.lz : i.l}</div>

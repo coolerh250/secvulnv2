@@ -43,17 +43,18 @@ function DonutPreview({ statusCounts }) {
   ].filter(s => s.v > 0);
 
   const cx = 40, cy = 40, r = 28, sw = 10;
-  let startAngle = -Math.PI / 2;
-  const paths = segs.map(seg => {
+  const { paths } = segs.reduce(({ paths, startAngle }, seg) => {
     const angle = (seg.v / total) * 2 * Math.PI;
     const endAngle = startAngle + angle;
     const x1 = cx + r * Math.cos(startAngle), y1 = cy + r * Math.sin(startAngle);
     const x2 = cx + r * Math.cos(endAngle), y2 = cy + r * Math.sin(endAngle);
     const large = angle > Math.PI ? 1 : 0;
     const d = `M ${x1.toFixed(2)} ${y1.toFixed(2)} A ${r} ${r} 0 ${large} 1 ${x2.toFixed(2)} ${y2.toFixed(2)}`;
-    startAngle = endAngle;
-    return <path key={seg.key} d={d} fill="none" stroke={STATUS_COLOR[seg.key]} strokeWidth={sw} strokeLinecap="round" />;
-  });
+    return {
+      paths: [...paths, <path key={seg.key} d={d} fill="none" stroke={STATUS_COLOR[seg.key]} strokeWidth={sw} strokeLinecap="round" />],
+      startAngle: endAngle,
+    };
+  }, { paths: [], startAngle: -Math.PI / 2 });
 
   return (
     <svg width={80} height={80} viewBox="0 0 80 80">
@@ -291,6 +292,7 @@ export function ReportPage() {
   const [toDate, setToDate]               = useState(today());
   const [format, setFormat]               = useState(1);
   const [previewData, setPreviewData]     = useState(null);
+  const [previewMissing, setPreviewMissing] = useState(0);
   const [loading, setLoading]             = useState(false);
   const [pdfLoading, setPdfLoading]       = useState(false);
   const [emailLoading, setEmailLoading]   = useState(false);
@@ -323,9 +325,11 @@ export function ReportPage() {
   const handlePreview = useCallback(async () => {
     if (!selectedDevices.length) return;
     setLoading(true);
+    const requestedCount = selectedDevices.length;
     try {
       const res = await reportApi.getData({ devices: selectedDevices.join(','), from: resolvedFrom, to: resolvedTo });
       setPreviewData(res.data);
+      setPreviewMissing(requestedCount - res.data.length);
     } catch { /* ignore */ } finally {
       setLoading(false);
     }
@@ -550,10 +554,15 @@ export function ReportPage() {
 
           {/* Preview area */}
           <div style={{ background: TOKENS.bgCard, border: `1px solid ${TOKENS.border}`, borderRadius: TOKENS.radius, padding: 20, minHeight: 300 }}>
-            <div style={{ fontSize: 13, fontWeight: 600, color: TOKENS.text, marginBottom: 16 }}>
+            <div style={{ fontSize: 13, fontWeight: 600, color: TOKENS.text, marginBottom: previewMissing > 0 ? 8 : 16 }}>
               {isZh ? '報告預覽' : 'Report Preview'}
               {previewData && <span style={{ fontSize: 11, color: TOKENS.textSecondary, fontWeight: 400, marginLeft: 10 }}>{resolvedFrom} ～ {resolvedTo}</span>}
             </div>
+            {previewMissing > 0 && (
+              <div style={{ fontSize: 11, color: TOKENS.warning, marginBottom: 14, padding: '6px 10px', background: TOKENS.warningDim, borderRadius: TOKENS.radiusSm }}>
+                {isZh ? `${previewMissing} 台設備在此期間無相關弱點，已從報告中略過` : `${previewMissing} device(s) have no vulnerabilities in this period and were omitted`}
+              </div>
+            )}
             <ReportPreview data={previewData} format={format} lang={lang} />
           </div>
         </div>
