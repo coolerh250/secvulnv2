@@ -63,6 +63,7 @@ async function reviews(req, res, next) {
        FROM vulnerabilities v
        JOIN risk_acceptances ra ON ra.vuln_id = v.id
        WHERE v.handle_status = 'accepted'
+         AND ra.review_date <= CURRENT_DATE + INTERVAL '90 days'
        ORDER BY ra.review_date ASC`
     );
     res.json(rows);
