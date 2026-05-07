@@ -12,6 +12,7 @@ export function Sidebar({ currentPage: page, onNavigate: setPage }) {
     { key: 'dashboard', icon: Icons.dashboard, label: t(lang, 'dashboard'), show: true },
     { key: 'search',    icon: Icons.search,    label: t(lang, 'search'),    show: true },
     { key: 'devices',   icon: Icons.devices,   label: t(lang, 'devices'),   show: true },
+    { key: 'reports',   icon: Icons.report,    label: lang === 'zh' ? '報表' : 'Reports',       show: true },
     { key: 'users',     icon: Icons.users,     label: lang === 'zh' ? '帳號管理' : 'Accounts', show: can('users', 'view') },
     { key: 'settings',  icon: Icons.settings,  label: t(lang, 'settings'),  show: can('settings', 'view') },
   ];

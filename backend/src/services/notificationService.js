@@ -237,4 +237,23 @@ async function notify(settings, sourceId) {
   }
 }
 
-module.exports = { notify, sendTestEmail, sendTestWebhook };
+async function sendReportEmail(settings, pdfBuffer, recipient, label) {
+  if (!settings.notif_smtp_host || !settings.notif_smtp_user || !settings.notif_smtp_pass) {
+    throw new Error('SMTP 設定不完整');
+  }
+  const to = recipient || settings.notif_email_addr;
+  if (!to) throw new Error('收件地址未設定');
+
+  const transporter = createTransport(settings);
+  const filename = `report_${label || new Date().toISOString().slice(0, 10)}.pdf`;
+  await transporter.sendMail({
+    from: settings.notif_smtp_from || settings.notif_smtp_user,
+    to,
+    subject: `SecVuln 報表：${label || new Date().toISOString().slice(0, 10)}`,
+    html: '<p>請見附件 PDF 報表。</p><p style="color:#888;font-size:12px">此郵件由 SecVuln 自動發送，請勿回覆。</p>',
+    attachments: [{ filename, content: pdfBuffer }],
+  });
+  console.log(`[notif] Report email sent to ${to} (${filename})`);
+}
+
+module.exports = { notify, sendTestEmail, sendTestWebhook, sendReportEmail };

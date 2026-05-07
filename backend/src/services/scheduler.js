@@ -1,6 +1,6 @@
 const pool = require('../db');
 const { sync, SYNC_SOURCES } = require('./nvdSync');
-const { notify } = require('./notificationService');
+const { notify, sendReportEmail } = require('./notificationService');
 
 const FREQ_MS = {
   '1h':    1 * 60 * 60 * 1000,
@@ -72,10 +72,59 @@ async function runDueSources() {
   }
 }
 
+async function runDueReports() {
+  try {
+    const { rows } = await pool.query('SELECT report_schedules, notif_smtp_host, notif_smtp_port, notif_smtp_user, notif_smtp_pass, notif_smtp_from FROM settings WHERE id = 1');
+    if (!rows[0]) return;
+    const settings = rows[0];
+    const schedules = settings.report_schedules || [];
+    if (!schedules.length) return;
+
+    const now = Date.now();
+    let updated = false;
+
+    for (const sched of schedules) {
+      if (!sched.enabled || sched.freq === 'manual') continue;
+      const freqMs = FREQ_MS[sched.freq];
+      if (!freqMs) continue;
+      const lastMs = sched.lastRun ? new Date(sched.lastRun).getTime() : 0;
+      if (now - lastMs < freqMs) continue;
+
+      console.log(`[scheduler] Running scheduled report "${sched.name || sched.id}"`);
+      try {
+        const { getReportData, buildFormat1, buildFormat2, buildFormat3, generatePdf } = require('../controllers/reportController');
+        const from = sched.periodType === 'custom'
+          ? sched.periodFrom
+          : new Date(now - parseInt(sched.periodType) * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+        const to = sched.periodType === 'custom'
+          ? sched.periodTo
+          : new Date().toISOString().slice(0, 10);
+
+        const data = await getReportData(sched.devices, from, to);
+        const builders = { 1: buildFormat1, 2: buildFormat2, 3: buildFormat3 };
+        const html = (builders[sched.format] || buildFormat1)(data, 'zh', from, to);
+        const pdfBuffer = await generatePdf(html);
+        const label = `${sched.name || sched.id}_${to}`;
+        await sendReportEmail(settings, pdfBuffer, sched.recipient, label);
+        sched.lastRun = new Date().toISOString();
+        updated = true;
+      } catch (err) {
+        console.error(`[scheduler] Report schedule "${sched.id}" failed:`, err.message);
+      }
+    }
+
+    if (updated) {
+      await pool.query('UPDATE settings SET report_schedules = $1 WHERE id = 1', [JSON.stringify(schedules)]);
+    }
+  } catch (err) {
+    console.error('[scheduler] runDueReports error:', err.message);
+  }
+}
+
 function start() {
   if (_timer) clearInterval(_timer);
   // Check every 5 minutes whether any source is due for sync
-  _timer = setInterval(runDueSources, 5 * 60 * 1000);
+  _timer = setInterval(() => { runDueSources(); runDueReports(); }, 5 * 60 * 1000);
   // Initial check after 15 s so the DB connection is ready
   setTimeout(runDueSources, 15_000);
   console.log('[scheduler] Auto-sync scheduler started (checks every 5 min)');

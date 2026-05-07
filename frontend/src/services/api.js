@@ -84,4 +84,13 @@ export const settingsApi = {
   syncSource:   (id)   => api.post(`/settings/sources/${id}/sync`),
 };
 
+// Reports
+export const reportApi = {
+  getData:      (params) => api.get('/reports', { params }),
+  downloadPdf:  (params) => api.get('/reports/pdf', { params, responseType: 'arraybuffer' }),
+  sendEmail:    (data)   => api.post('/reports/email', data),
+  getSchedule:  ()       => api.get('/reports/schedule'),
+  saveSchedule: (data)   => api.post('/reports/schedule', data),
+};
+
 export default api;
