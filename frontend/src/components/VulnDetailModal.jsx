@@ -33,11 +33,16 @@ export function VulnDetailModal({ vuln, lang, onClose, onUpdate, onDelete, devic
 
   const handleSetStatus = async (status) => {
     if (device) {
-      await deviceVulnApi.updateStatus(device.id, vuln.id, status);
+      const res = await deviceVulnApi.updateStatus(device.id, vuln.id, status);
+      onUpdate(vuln.id, {
+        handle_status: status,
+        status_updated_at: res.data.status_updated_at,
+        status_updated_by: res.data.status_updated_by,
+      });
     } else {
       await vulnApi.updateStatus(vuln.id, status);
+      onUpdate(vuln.id, { handle_status: status });
     }
-    onUpdate(vuln.id, { handle_status: status });
   };
 
   const handleAddNote = async () => {
@@ -148,7 +153,19 @@ export function VulnDetailModal({ vuln, lang, onClose, onUpdate, onDelete, devic
           {/* Actions */}
           {canModify ? (
             <div style={{ padding: 16, background: TOKENS.bg, borderRadius: TOKENS.radius, border: `1px solid ${TOKENS.border}` }}>
-              <div style={{ fontSize: 12, color: TOKENS.textMuted, marginBottom: 10, textTransform: 'uppercase', letterSpacing: '0.05em', fontWeight: 600 }}>{lang === 'zh' ? '處理動作' : 'Actions'}</div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
+                <div style={{ fontSize: 12, color: TOKENS.textMuted, textTransform: 'uppercase', letterSpacing: '0.05em', fontWeight: 600 }}>{lang === 'zh' ? '處理動作' : 'Actions'}</div>
+                {vuln.status_updated_by && (
+                  <div style={{ fontSize: 11, color: TOKENS.textMuted }}>
+                    {lang === 'zh' ? '最後操作' : 'Last updated'}：
+                    <strong style={{ color: TOKENS.textSecondary }}>{vuln.status_updated_by}</strong>
+                    {' ・ '}
+                    {vuln.status_updated_at
+                      ? new Date(vuln.status_updated_at).toLocaleString(lang === 'zh' ? 'zh-TW' : 'en-US')
+                      : '—'}
+                  </div>
+                )}
+              </div>
               <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
                 <Btn variant={vuln.handle_status === 'fixed' ? 'primary' : 'default'} onClick={() => handleSetStatus('fixed')} icon={Icons.check}>
                   {lang === 'zh' ? '標記已修復' : 'Mark Fixed'}
@@ -302,11 +319,17 @@ export function VulnDetailModal({ vuln, lang, onClose, onUpdate, onDelete, devic
         <RiskAcceptModal vuln={vuln} lang={lang} onClose={() => setShowAcceptModal(false)}
           onSave={async (data) => {
             if (device) {
-              await deviceVulnApi.setRiskAcceptance(device.id, vuln.id, data);
+              const res = await deviceVulnApi.setRiskAcceptance(device.id, vuln.id, data);
+              onUpdate(vuln.id, {
+                handle_status: 'accepted',
+                riskAcceptance: { ...data, accepted_date: new Date().toISOString().slice(0, 10) },
+                status_updated_at: res.data.status_updated_at,
+                status_updated_by: res.data.status_updated_by,
+              });
             } else {
               await vulnApi.setRiskAcceptance(vuln.id, data);
+              onUpdate(vuln.id, { handle_status: 'accepted', riskAcceptance: { ...data, accepted_date: new Date().toISOString().slice(0, 10) } });
             }
-            onUpdate(vuln.id, { handle_status: 'accepted', riskAcceptance: { ...data, accepted_date: new Date().toISOString().slice(0, 10) } });
             setShowAcceptModal(false);
           }} />
       )}

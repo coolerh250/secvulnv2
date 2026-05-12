@@ -291,7 +291,7 @@ async function getDeviceVulns(req, res, next) {
   try {
     const { id } = req.params;
     const { rows: dvRows } = await pool.query(
-      `SELECT vuln_id, handle_status FROM device_vulnerabilities WHERE device_id = $1`,
+      `SELECT vuln_id, handle_status, updated_at, updated_by_name FROM device_vulnerabilities WHERE device_id = $1`,
       [id]
     );
     if (dvRows.length === 0) return res.json([]);
@@ -318,9 +318,11 @@ async function getDeviceVulns(req, res, next) {
     const data = vulns.map(v => ({
       ...v,
       firmware:       v.firmware_versions,
-      handle_status:  dvMap[v.id]?.handle_status || 'pending',
-      notes:          notesMap[v.id]  || [],
-      riskAcceptance: acceptMap[v.id] || null,
+      handle_status:     dvMap[v.id]?.handle_status || 'pending',
+      status_updated_at: dvMap[v.id]?.updated_at || null,
+      status_updated_by: dvMap[v.id]?.updated_by_name || null,
+      notes:             notesMap[v.id]  || [],
+      riskAcceptance:    acceptMap[v.id] || null,
     }));
 
     res.json(data);
@@ -339,9 +341,9 @@ async function updateDeviceVulnStatus(req, res, next) {
     }
 
     const { rowCount } = await pool.query(
-      `UPDATE device_vulnerabilities SET handle_status = $1, updated_at = NOW()
+      `UPDATE device_vulnerabilities SET handle_status = $1, updated_at = NOW(), updated_by_name = $4
        WHERE device_id = $2 AND vuln_id = $3`,
-      [handle_status, id, vulnId]
+      [handle_status, id, vulnId, req.user.username]
     );
     if (!rowCount) return res.status(404).json({ error: 'Device vulnerability record not found' });
 
@@ -357,7 +359,13 @@ async function updateDeviceVulnStatus(req, res, next) {
       [status, cnt, id]
     );
 
-    res.json({ handle_status, device_id: parseInt(id), vuln_id: vulnId });
+    res.json({
+      handle_status,
+      status_updated_at: new Date().toISOString(),
+      status_updated_by: req.user.username,
+      device_id: parseInt(id),
+      vuln_id: vulnId,
+    });
   } catch (err) {
     next(err);
   }
@@ -388,9 +396,9 @@ async function setDeviceVulnRiskAcceptance(req, res, next) {
     }
 
     await pool.query(
-      `UPDATE device_vulnerabilities SET handle_status = 'accepted', updated_at = NOW()
+      `UPDATE device_vulnerabilities SET handle_status = 'accepted', updated_at = NOW(), updated_by_name = $3
        WHERE device_id = $1 AND vuln_id = $2`,
-      [id, vulnId]
+      [id, vulnId, req.user.username]
     );
 
     await pool.query(
@@ -418,7 +426,11 @@ async function setDeviceVulnRiskAcceptance(req, res, next) {
       [devStatus, cnt, id]
     );
 
-    res.status(201).json(rows[0]);
+    res.status(201).json({
+      ...rows[0],
+      status_updated_at: new Date().toISOString(),
+      status_updated_by: req.user.username,
+    });
   } catch (err) {
     next(err);
   }
