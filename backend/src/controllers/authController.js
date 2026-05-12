@@ -1,6 +1,7 @@
-const bcrypt = require('bcryptjs');
-const jwt    = require('jsonwebtoken');
-const pool   = require('../db');
+const bcrypt       = require('bcryptjs');
+const jwt          = require('jsonwebtoken');
+const pool         = require('../db');
+const auditService = require('../services/auditService');
 
 async function login(req, res, next) {
   try {
@@ -28,6 +29,8 @@ async function login(req, res, next) {
     );
 
     const { password_hash, ...safeUser } = user;
+    auditService.log({ id: user.id, username: user.username, role: user.role },
+      'auth.login', 'auth', null, null, {});
     res.json({ token, user: safeUser });
   } catch (err) {
     next(err);

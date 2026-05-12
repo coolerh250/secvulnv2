@@ -11,6 +11,7 @@ import { DevicesPage } from './pages/DevicesPage';
 import { UsersPage } from './pages/UsersPage';
 import { SettingsPage } from './pages/SettingsPage';
 import { ReportPage } from './pages/ReportPage';
+import { LogsPage } from './pages/LogsPage';
 
 function AppShell() {
   const { currentUser: user, loading } = useAuth();
@@ -45,6 +46,7 @@ function AppShell() {
       case 'users':     return <UsersPage />;
       case 'settings':  return <SettingsPage onNavigate={navigateTo} />;
       case 'reports':   return <ReportPage />;
+      case 'logs':      return <LogsPage />;
       default:          return <DashboardPage onNavigate={navigateTo} />;
     }
   };

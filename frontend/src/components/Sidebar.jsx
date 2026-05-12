@@ -13,6 +13,7 @@ export function Sidebar({ currentPage: page, onNavigate: setPage }) {
     { key: 'search',    icon: Icons.search,    label: t(lang, 'search'),    show: true },
     { key: 'devices',   icon: Icons.devices,   label: t(lang, 'devices'),   show: true },
     { key: 'reports',   icon: Icons.report,    label: lang === 'zh' ? '報表' : 'Reports',       show: true },
+    { key: 'logs',      icon: Icons.logs,      label: lang === 'zh' ? '稽核日誌' : 'Audit Logs', show: can('auditLogs', 'view') },
     { key: 'users',     icon: Icons.users,     label: lang === 'zh' ? '帳號管理' : 'Accounts', show: can('users', 'view') },
     { key: 'settings',  icon: Icons.settings,  label: t(lang, 'settings'),  show: can('settings', 'view') },
   ];

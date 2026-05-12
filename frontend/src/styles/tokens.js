@@ -72,6 +72,7 @@ export const ROLES = {
       settings:   { view: true, modify: true },
       riskAccept: { view: true, modify: true },
       aiAnalysis: { view: true },
+      auditLogs:  { view: true },
     },
   },
   admin: {
@@ -84,6 +85,7 @@ export const ROLES = {
       settings:   { view: false, modify: false },
       riskAccept: { view: true, modify: false },
       aiAnalysis: { view: true },
+      auditLogs:  { view: true },
     },
   },
   user: {

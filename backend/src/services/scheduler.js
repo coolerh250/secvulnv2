@@ -1,6 +1,7 @@
-const pool = require('../db');
+const pool         = require('../db');
 const { sync, SYNC_SOURCES } = require('./nvdSync');
 const { notify, sendReportEmail } = require('./notificationService');
+const auditService = require('./auditService');
 
 const FREQ_MS = {
   '1h':    1 * 60 * 60 * 1000,
@@ -119,10 +120,20 @@ async function runDueReports() {
   }
 }
 
+async function cleanupAuditLogs() {
+  try {
+    const { rows } = await pool.query('SELECT log_retention_days FROM settings WHERE id = 1');
+    const days = rows[0]?.log_retention_days || 90;
+    await auditService.cleanup(days);
+  } catch (err) {
+    console.error('[scheduler] cleanupAuditLogs error:', err.message);
+  }
+}
+
 function start() {
   if (_timer) clearInterval(_timer);
   // Check every 5 minutes whether any source is due for sync
-  _timer = setInterval(() => { runDueSources(); runDueReports(); }, 5 * 60 * 1000);
+  _timer = setInterval(() => { runDueSources(); runDueReports(); cleanupAuditLogs(); }, 5 * 60 * 1000);
   // Initial check after 15 s so the DB connection is ready
   setTimeout(runDueSources, 15_000);
   console.log('[scheduler] Auto-sync scheduler started (checks every 5 min)');

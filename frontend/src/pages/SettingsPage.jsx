@@ -41,6 +41,7 @@ export function SettingsPage({ onNavigate }) {
   const [syncResult,   setSyncResult]   = useState({});
   const [showAddSrc,   setShowAddSrc]   = useState(false);
   const [newSrc,       setNewSrc]       = useState({ name: '', desc: '', url: '', apiKey: '', syncFreq: '24h' });
+  const [logRetentionDays, setLogRetentionDays] = useState(90);
 
   useEffect(() => {
     settingsApi.get().then(res => {
@@ -63,6 +64,7 @@ export function SettingsPage({ onNavigate }) {
       if (d.notif_webhook_type) setWebhookType(d.notif_webhook_type);
       if (d.notif_webhook_token) setWebhookToken(d.notif_webhook_token);
       if (d.data_sources)       setSources(d.data_sources);
+      if (d.log_retention_days) setLogRetentionDays(d.log_retention_days);
     }).finally(() => setLoading(false));
   }, []);
 
@@ -141,6 +143,7 @@ export function SettingsPage({ onNavigate }) {
       notif_webhook_url: webhookUrl || null, notif_webhook_type: webhookType || null,
       notif_webhook_token: webhookToken || null,
       data_sources: sources,
+      log_retention_days: logRetentionDays,
     });
     setSaved(true); setTimeout(() => setSaved(false), 2000);
   };
@@ -459,6 +462,33 @@ export function SettingsPage({ onNavigate }) {
               </div>
             );
           })}
+        </div>
+      </Card>
+
+      <Card title={lang === 'zh' ? '稽核日誌保留設定' : 'Audit Log Retention'}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+          <p style={{ margin: 0, fontSize: 13, color: TOKENS.textSecondary }}>
+            {lang === 'zh' ? '超過設定保留期的日誌將於下次排程時自動刪除。' : 'Logs older than the retention period will be automatically deleted on the next scheduled run.'}
+          </p>
+          <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
+            {[
+              { value: 90,  label: lang === 'zh' ? '90 天（3 個月）' : '90 days (3 months)' },
+              { value: 180, label: lang === 'zh' ? '180 天（6 個月）' : '180 days (6 months)' },
+              { value: 365, label: lang === 'zh' ? '365 天（1 年）'   : '365 days (1 year)' },
+            ].map(opt => (
+              <label key={opt.value} style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', fontSize: 13, color: TOKENS.text }}>
+                <input
+                  type="radio"
+                  name="log_retention_days"
+                  value={opt.value}
+                  checked={logRetentionDays === opt.value}
+                  onChange={() => setLogRetentionDays(opt.value)}
+                  style={{ accentColor: TOKENS.primary }}
+                />
+                {opt.label}
+              </label>
+            ))}
+          </div>
         </div>
       </Card>
 

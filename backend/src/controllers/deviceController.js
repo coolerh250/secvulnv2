@@ -1,5 +1,6 @@
-const pool = require('../db');
+const pool         = require('../db');
 const { DEVICE_TYPE_PRODUCTS, DEVICE_TYPE_OPTIONS } = require('../lib/deviceTypes');
+const auditService = require('../services/auditService');
 
 function isProductMatch(deviceType, affectedProducts, productText) {
   if (!deviceType) return true;
@@ -147,6 +148,8 @@ async function create(req, res, next) {
        VALUES ($1, $2, $3, $4, $5, $6, 'upToDate', CURRENT_DATE, 0) RETURNING *`,
       [name, name_en || name, vendor || 'Fortinet', device_type || '', model, firmware]
     );
+    auditService.log(req.user, 'device.create', 'device', rows[0].id, name,
+      { vendor: rows[0].vendor, model });
     res.status(201).json(rows[0]);
   } catch (err) {
     next(err);
@@ -163,6 +166,8 @@ async function update(req, res, next) {
       [name, name_en || name, vendor, device_type || '', model, firmware, id]
     );
     if (!rows[0]) return res.status(404).json({ error: 'Device not found' });
+    auditService.log(req.user, 'device.update', 'device', id, rows[0].name,
+      { changed_fields: Object.keys(req.body) });
     res.json(rows[0]);
   } catch (err) {
     next(err);
@@ -172,8 +177,10 @@ async function update(req, res, next) {
 async function remove(req, res, next) {
   try {
     const { id } = req.params;
+    const { rows: [dev] } = await pool.query('SELECT name FROM devices WHERE id = $1', [id]);
     const { rowCount } = await pool.query('DELETE FROM devices WHERE id = $1', [id]);
     if (!rowCount) return res.status(404).json({ error: 'Device not found' });
+    auditService.log(req.user, 'device.delete', 'device', id, dev?.name || id, {});
     res.status(204).end();
   } catch (err) {
     next(err);
@@ -210,6 +217,7 @@ async function scan(req, res, next) {
        WHERE id=$3 RETURNING *`,
       [status, vuln_count, id]
     );
+    auditService.log(req.user, 'device.scan', 'device', id, device.name, { vuln_count });
     res.json(rows[0]);
   } catch (err) {
     next(err);
@@ -250,6 +258,8 @@ async function scanAll(req, res, next) {
       return rows[0];
     }));
 
+    auditService.log(req.user, 'device.scan_all', 'device', null, null,
+      { device_count: updated.length });
     res.json({ updated: updated.length, devices: updated });
   } catch (err) {
     next(err);
@@ -359,6 +369,8 @@ async function updateDeviceVulnStatus(req, res, next) {
       [status, cnt, id]
     );
 
+    auditService.log(req.user, 'device_vuln.status_change', 'vulnerability',
+      `${id}:${vulnId}`, vulnId, { device_id: parseInt(id), vuln_id: vulnId, new_status: handle_status });
     res.json({
       handle_status,
       status_updated_at: new Date().toISOString(),
@@ -381,6 +393,8 @@ async function addDeviceVulnNote(req, res, next) {
        VALUES ($1, $2, $3, $4, $5) RETURNING *`,
       [vulnId, text.trim(), req.user.username, req.user.id, id]
     );
+    auditService.log(req.user, 'device_vuln.note_add', 'vulnerability',
+      `${id}:${vulnId}`, vulnId, { device_id: parseInt(id), vuln_id: vulnId });
     res.status(201).json(rows[0]);
   } catch (err) {
     next(err);
@@ -426,6 +440,8 @@ async function setDeviceVulnRiskAcceptance(req, res, next) {
       [devStatus, cnt, id]
     );
 
+    auditService.log(req.user, 'device_vuln.risk_accept', 'vulnerability',
+      `${id}:${vulnId}`, vulnId, { device_id: parseInt(id), vuln_id: vulnId, reason });
     res.status(201).json({
       ...rows[0],
       status_updated_at: new Date().toISOString(),

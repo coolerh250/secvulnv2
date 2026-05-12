@@ -1,5 +1,6 @@
-const bcrypt = require('bcryptjs');
-const pool   = require('../db');
+const bcrypt       = require('bcryptjs');
+const pool         = require('../db');
+const auditService = require('../services/auditService');
 
 const ROLE_HIERARCHY = { superadmin: 3, admin: 2, user: 1 };
 
@@ -33,6 +34,8 @@ async function create(req, res, next) {
        VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING id, username, display_name, display_name_en, email, role, active, created_at`,
       [username.trim(), hash, display_name, display_name_en || '', email, role, active]
     );
+    auditService.log(req.user, 'user.create', 'user', rows[0].id, rows[0].username,
+      { role });
     res.status(201).json(rows[0]);
   } catch (err) {
     if (err.code === '23505') return res.status(409).json({ error: 'Username or email already exists' });
@@ -75,6 +78,9 @@ async function update(req, res, next) {
       `UPDATE users SET ${sets.join(',')} WHERE id=$${p} RETURNING id, username, display_name, display_name_en, email, role, active, last_login, created_at`,
       vals
     );
+    const changedFields = Object.keys(req.body).filter(k => k !== 'password');
+    auditService.log(req.user, 'user.update', 'user', id, rows[0].username,
+      { changed_fields: changedFields });
     res.json(rows[0]);
   } catch (err) {
     next(err);
@@ -87,12 +93,13 @@ async function remove(req, res, next) {
     if (req.user.id === parseInt(id)) {
       return res.status(400).json({ error: 'Cannot delete your own account' });
     }
-    const { rows: existing } = await pool.query('SELECT role FROM users WHERE id = $1', [id]);
+    const { rows: existing } = await pool.query('SELECT role, username FROM users WHERE id = $1', [id]);
     if (!existing[0]) return res.status(404).json({ error: 'User not found' });
     if (!canAssign(req.user.role, existing[0].role)) {
       return res.status(403).json({ error: 'Insufficient permissions' });
     }
     await pool.query('DELETE FROM users WHERE id = $1', [id]);
+    auditService.log(req.user, 'user.delete', 'user', id, existing[0].username, {});
     res.status(204).end();
   } catch (err) {
     next(err);

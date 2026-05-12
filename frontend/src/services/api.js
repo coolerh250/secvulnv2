@@ -93,4 +93,9 @@ export const reportApi = {
   saveSchedule: (data)   => api.post('/reports/schedule', data),
 };
 
+// Audit Logs
+export const auditApi = {
+  list: (params = {}) => api.get('/audit', { params }),
+};
+
 export default api;

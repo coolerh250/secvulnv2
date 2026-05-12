@@ -1,7 +1,8 @@
-const pool = require('../db');
-const Anthropic = require('@anthropic-ai/sdk');
-const OpenAI = require('openai');
+const pool         = require('../db');
+const Anthropic    = require('@anthropic-ai/sdk');
+const OpenAI       = require('openai');
 const { GoogleGenerativeAI } = require('@google/generative-ai');
+const auditService = require('../services/auditService');
 
 function buildPrompts(vuln, lang) {
   const isZh = lang === 'zh';
@@ -194,6 +195,7 @@ async function analyzeVuln(req, res, next) {
       ? `${baseLabel} (${s.ai_base_url})`
       : baseLabel;
 
+    auditService.log(req.user, 'ai.analyze', 'ai', vuln.id, vuln.id, { vuln_id: vuln.id, provider });
     res.json({ analysis, provider, providerLabel, model });
   } catch (err) {
     if (err.code === 'missing_base_url') {

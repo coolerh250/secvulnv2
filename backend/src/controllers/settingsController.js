@@ -1,6 +1,7 @@
-const pool = require('../db');
-const https = require('https');
+const pool         = require('../db');
+const https        = require('https');
 const { sendTestEmail, sendTestWebhook } = require('../services/notificationService');
+const auditService = require('../services/auditService');
 
 // Returns true for hostnames that should never be fetched server-side (SSRF prevention)
 function isPrivateHostname(urlStr) {
@@ -38,7 +39,7 @@ async function update(req, res, next) {
       notif_email, notif_web, notif_threshold, notif_email_addr,
       notif_smtp_host, notif_smtp_port, notif_smtp_user, notif_smtp_pass, notif_smtp_from,
       notif_webhook_url, notif_webhook_type, notif_webhook_token,
-      interface_language, data_sources,
+      interface_language, data_sources, log_retention_days,
     } = req.body;
 
     // If the client echoes back a masked placeholder, don't overwrite the stored value
@@ -86,6 +87,7 @@ async function update(req, res, next) {
         notif_webhook_token  = COALESCE($17, notif_webhook_token),
         interface_language   = COALESCE($18, interface_language),
         data_sources         = COALESCE($19, data_sources),
+        log_retention_days   = COALESCE($20, log_retention_days),
         updated_at           = NOW()
        WHERE id = 1 RETURNING *`,
       [
@@ -96,8 +98,13 @@ async function update(req, res, next) {
         notif_webhook_url || null, notif_webhook_type || null, realWebhookToken || null,
         interface_language,
         mergedSources ? JSON.stringify(mergedSources) : null,
+        log_retention_days || null,
       ]
     );
+    const SENSITIVE = ['ai_api_key', 'notif_smtp_pass', 'notif_webhook_token'];
+    const changedFields = Object.keys(req.body).filter(k => !SENSITIVE.includes(k));
+    auditService.log(req.user, 'settings.update', 'settings', 'settings', 'System Settings',
+      { changed_fields: changedFields });
     res.json(rows[0]);
   } catch (err) {
     next(err);
