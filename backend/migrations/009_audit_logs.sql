@@ -17,3 +17,6 @@ CREATE INDEX IF NOT EXISTS audit_logs_username_idx   ON audit_logs (username);
 
 ALTER TABLE settings
   ADD COLUMN IF NOT EXISTS log_retention_days INTEGER DEFAULT 90;
+
+GRANT ALL ON TABLE audit_logs TO secvulnv2;
+GRANT USAGE, SELECT ON SEQUENCE audit_logs_id_seq TO secvulnv2;
