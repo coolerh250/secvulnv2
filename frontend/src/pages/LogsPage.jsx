@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import { TOKENS } from '../styles/tokens';
 import { useLang } from '../contexts/LangContext';
 import { auditApi } from '../services/api';
@@ -81,12 +81,19 @@ function pageBtnStyle(disabled, active = false) {
   };
 }
 
+function defaultFrom() {
+  const d = new Date();
+  d.setDate(d.getDate() - 30);
+  return d.toISOString().slice(0, 10);
+}
+
 export function LogsPage() {
   const { lang } = useLang();
   const isZh = lang === 'zh';
 
-  const [filters, setFilters] = useState({ keyword: '', category: '', username: '', dateFrom: '', dateTo: '' });
-  const [pending, setPending] = useState({ keyword: '', category: '', username: '', dateFrom: '', dateTo: '' });
+  const initFilters = { keyword: '', category: '', username: '', dateFrom: defaultFrom(), dateTo: '' };
+  const [filters, setFilters] = useState(initFilters);
+  const [pending, setPending] = useState(initFilters);
   const [data, setData] = useState([]);
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(1);
@@ -115,6 +122,8 @@ export function LogsPage() {
       setLoading(false);
     }
   }, []);
+
+  useEffect(() => { fetchLogs(initFilters, 1); }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleSearch = () => {
     setFilters({ ...pending });
@@ -261,9 +270,9 @@ export function LogsPage() {
         </div>
       )}
 
-      {!searched && (
+      {!searched && loading && (
         <div style={{ textAlign: 'center', padding: 64, color: TOKENS.textMuted }}>
-          {isZh ? '設定篩選條件後點擊「查詢」' : 'Set filters and click Search'}
+          {isZh ? '載入中…' : 'Loading…'}
         </div>
       )}
     </div>
