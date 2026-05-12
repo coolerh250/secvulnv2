@@ -38,6 +38,11 @@
 - 月度趨勢長條圖
 - 即將到期的風險接受重新評估清單
 
+### 稽核日誌
+- 記錄所有重要操作（登入、弱點狀態變更、設備 CRUD、使用者管理、設定變更、AI 分析）
+- 支援關鍵字、分類、使用者、日期區間篩選，後端分頁
+- 可設定保留期（90 / 180 / 365 天），逾期自動清除
+
 ### 其他
 - RBAC：`superadmin` / `admin` / `user` 三級權限
 - 雙語 UI（繁中／英文即時切換）
@@ -101,14 +106,32 @@ cd frontend && npm run dev
 
 ---
 
+## 角色權限
+
+| 功能 | superadmin ★ | admin ▲ | user ● |
+|------|:---:|:---:|:---:|
+| 儀表板（查看＋統計卡展開） | ✅ | ✅ | ✅ |
+| 弱點搜尋（查看詳情） | ✅ | ✅ | ✅ |
+| 弱點狀態變更 | ✅ | ✅ | ❌ |
+| 弱點風險接受管理 | ✅ | ✅ | ❌ |
+| 弱點刪除 | ✅ | ❌ | ❌ |
+| 設備管理（查看） | ✅ | ✅ | ✅ |
+| 設備 CRUD ＋ 掃描 | ✅ | ✅ | ❌ |
+| 使用者管理 | ✅（可指派全角色） | ✅（可指派 admin/user） | ❌ |
+| 系統設定 | ✅ | ❌ | ❌ |
+| AI 弱點分析 | ✅ | ✅ | ❌ |
+| 稽核日誌 | ✅ | ✅ | ❌ |
+
+---
+
 ## 示範帳號
 
-| 角色 | 帳號 | 密碼 | 權限 |
-|------|------|------|------|
-| superadmin | admin@example.com | admin123 | 全部功能含設定 |
-| admin | mgr@example.com | admin123 | 弱點處理、設備管理、使用者管理 |
-| user | analyst@example.com | admin123 | 查看 + 新增備註 |
-| user | viewer@example.com | admin123 | 唯讀 |
+| 角色 | 帳號 | 密碼 |
+|------|------|------|
+| superadmin | admin@example.com | admin123 |
+| admin | mgr@example.com | admin123 |
+| user | analyst@example.com | admin123 |
+| user | viewer@example.com | admin123 |
 
 ---
 
@@ -150,12 +173,15 @@ secvulnv2/
 │   │   ├── 002_seed.sql          # 示範帳號與弱點資料
 │   │   ├── 003_device_type.sql   # 設備類型欄位
 │   │   ├── 004_device_vuln.sql   # 每設備弱點 junction table
-│   │   └── 005_ai_base_url.sql   # AI 本地模型端點 URL
+│   │   ├── 005_ai_base_url.sql   # AI 本地模型端點 URL
+│   │   └── 009_audit_logs.sql    # 稽核日誌 table + settings 保留期欄位
 │   ├── src/
 │   │   ├── controllers/
 │   │   │   ├── aiController.js          # AI 分析（Claude/Gemini/OpenAI/Local）
+│   │   │   ├── auditController.js       # 稽核日誌查詢（分頁、篩選）
 │   │   │   ├── dashboardController.js
 │   │   │   ├── deviceController.js      # 設備 CRUD + scan + 每設備弱點
+│   │   │   ├── reportController.js      # PDF 報告產生
 │   │   │   ├── settingsController.js    # API key 遮罩、SSRF 防護
 │   │   │   ├── userController.js
 │   │   │   └── vulnerabilityController.js
@@ -166,15 +192,19 @@ secvulnv2/
 │   │   │   └── errorHandler.js
 │   │   ├── routes/
 │   │   │   ├── ai.js
+│   │   │   ├── audit.js                 # GET /api/audit
 │   │   │   ├── auth.js
 │   │   │   ├── dashboard.js
 │   │   │   ├── devices.js
+│   │   │   ├── reports.js
 │   │   │   ├── settings.js
 │   │   │   ├── users.js
 │   │   │   └── vulnerabilities.js
 │   │   ├── services/
+│   │   │   ├── auditService.js          # fire-and-forget 稽核寫入、定期清除
+│   │   │   ├── notificationService.js   # Email / Webhook / Web 通知
 │   │   │   ├── nvdSync.js               # NVD / Fortinet 同步
-│   │   │   └── scheduler.js             # 自動同步排程（5 分鐘輪詢）
+│   │   │   └── scheduler.js             # 自動同步 + 報告排程 + 日誌清除
 │   │   ├── db.js                        # pg Pool
 │   │   └── index.js                     # Express app 入口
 │   ├── .env.example
@@ -183,6 +213,7 @@ secvulnv2/
 │   ├── src/
 │   │   ├── components/
 │   │   │   ├── Icons.jsx
+│   │   │   ├── Sidebar.jsx
 │   │   │   ├── VulnDetailModal.jsx      # 弱點詳情 + AI 分析 + 備註
 │   │   │   └── ui/                      # Badge, Btn, CvssBar, MiniBarChart…
 │   │   ├── contexts/
@@ -192,14 +223,16 @@ secvulnv2/
 │   │   │   ├── DashboardPage.jsx
 │   │   │   ├── DevicesPage.jsx          # 設備列表 + 每設備弱點展開
 │   │   │   ├── LoginPage.jsx
+│   │   │   ├── LogsPage.jsx             # 稽核日誌查詢頁
+│   │   │   ├── ReportsPage.jsx          # PDF 報告下載 + 排程
 │   │   │   ├── SearchPage.jsx           # 弱點搜尋 + 分頁
-│   │   │   ├── SettingsPage.jsx         # AI、通知、資料來源設定
+│   │   │   ├── SettingsPage.jsx         # AI、通知、資料來源、日誌保留期設定
 │   │   │   └── UsersPage.jsx
 │   │   ├── services/
 │   │   │   └── api.js                   # authApi / vulnApi / deviceApi /
-│   │   │                                #   deviceVulnApi / aiApi / settingsApi…
+│   │   │                                #   auditApi / reportApi / settingsApi…
 │   │   ├── styles/
-│   │   │   └── tokens.js                # 設計 token（顏色、字型、間距）
+│   │   │   └── tokens.js                # 設計 token（顏色、字型、RBAC 權限矩陣）
 │   │   ├── App.jsx
 │   │   └── main.jsx
 │   ├── index.html
@@ -254,9 +287,9 @@ secvulnv2/
 | Method | Path | Auth | 說明 |
 |--------|------|------|------|
 | GET | `/api/users` | admin+ | 使用者列表 |
-| POST | `/api/users` | superadmin | 新增使用者 |
-| PUT | `/api/users/:id` | superadmin | 更新使用者 |
-| DELETE | `/api/users/:id` | superadmin | 刪除使用者 |
+| POST | `/api/users` | admin+ | 新增使用者 |
+| PUT | `/api/users/:id` | admin+ | 更新使用者 |
+| DELETE | `/api/users/:id` | admin+ | 刪除使用者 |
 
 ### 設定
 | Method | Path | Auth | 說明 |
@@ -272,6 +305,11 @@ secvulnv2/
 | GET | `/api/dashboard/stats` | ✓ | 統計彙總 |
 | GET | `/api/dashboard/trend` | ✓ | 月度趨勢資料 |
 | GET | `/api/dashboard/reviews` | ✓ | 即將到期的風險接受清單 |
+
+### 稽核日誌
+| Method | Path | Auth | 說明 |
+|--------|------|------|------|
+| GET | `/api/audit` | admin+ | 查詢稽核日誌（關鍵字、分類、使用者、日期區間、分頁） |
 
 ---
 
