@@ -367,7 +367,7 @@ async function generatePdf(html) {
     const page = await browser.newPage();
     await page.setContent(html, { waitUntil: 'networkidle0' });
     const pdf = await page.pdf({ format: 'A4', printBackground: true, margin: { top: '12mm', bottom: '12mm', left: '12mm', right: '12mm' } });
-    return pdf;
+    return Buffer.from(pdf);
   } finally {
     await browser.close();
   }
