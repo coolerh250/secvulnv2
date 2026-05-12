@@ -30,6 +30,7 @@ export const vulnApi = {
   list:              (params = {}) => api.get('/vulnerabilities', { params }),
   get:               (id)          => api.get(`/vulnerabilities/${id}`),
   updateStatus:      (id, status)  => api.put(`/vulnerabilities/${id}/status`, { handle_status: status }),
+  updateMeta:        (id, data)    => api.put(`/vulnerabilities/${id}/meta`, data),
   addNote:           (id, text)    => api.post(`/vulnerabilities/${id}/notes`, { text }),
   setRiskAcceptance: (id, data)    => api.post(`/vulnerabilities/${id}/risk-acceptance`, data),
   remove:            (id)          => api.delete(`/vulnerabilities/${id}`),
@@ -40,6 +41,7 @@ export const dashboardApi = {
   stats:   () => api.get('/dashboard/stats'),
   trend:   () => api.get('/dashboard/trend'),
   reviews: () => api.get('/dashboard/reviews'),
+  overdue: () => api.get('/dashboard/overdue'),
 };
 
 // Devices
@@ -57,6 +59,7 @@ export const deviceApi = {
 export const deviceVulnApi = {
   list:              (deviceId)                  => api.get(`/devices/${deviceId}/vulnerabilities`),
   updateStatus:      (deviceId, vulnId, status)  => api.put(`/devices/${deviceId}/vulnerabilities/${vulnId}/status`, { handle_status: status }),
+  updateMeta:        (deviceId, vulnId, data)    => api.put(`/devices/${deviceId}/vulnerabilities/${vulnId}/meta`, data),
   addNote:           (deviceId, vulnId, text)    => api.post(`/devices/${deviceId}/vulnerabilities/${vulnId}/notes`, { text }),
   setRiskAcceptance: (deviceId, vulnId, data)    => api.post(`/devices/${deviceId}/vulnerabilities/${vulnId}/risk-acceptance`, data),
 };

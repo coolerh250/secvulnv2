@@ -14,8 +14,9 @@ router.post('/:id/scan', requireRole('superadmin', 'admin'), ctrl.scan);
 
 // Per-device vulnerability routes
 router.get('/:id/vulnerabilities',                                                        ctrl.getDeviceVulns);
-router.put('/:id/vulnerabilities/:vulnId/status',  requireRole('superadmin', 'admin'),   ctrl.updateDeviceVulnStatus);
-router.post('/:id/vulnerabilities/:vulnId/notes',                                         ctrl.addDeviceVulnNote);
+router.put('/:id/vulnerabilities/:vulnId/status',          requireRole('superadmin', 'admin'), ctrl.updateDeviceVulnStatus);
+router.put('/:id/vulnerabilities/:vulnId/meta',            requireRole('superadmin', 'admin'), ctrl.updateDeviceVulnMeta);
+router.post('/:id/vulnerabilities/:vulnId/notes',                                               ctrl.addDeviceVulnNote);
 router.post('/:id/vulnerabilities/:vulnId/risk-acceptance', requireRole('superadmin', 'admin'), ctrl.setDeviceVulnRiskAcceptance);
 
 module.exports = router;

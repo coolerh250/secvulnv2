@@ -451,6 +451,26 @@ async function setDeviceVulnRiskAcceptance(req, res, next) {
   }
 }
 
+async function updateDeviceVulnMeta(req, res, next) {
+  try {
+    const { id, vulnId } = req.params;
+    const { assignee_id, due_date } = req.body;
+    const sets = [], params = [];
+    let idx = 1;
+    if (assignee_id !== undefined) { sets.push(`assignee_id = $${idx++}`); params.push(assignee_id || null); }
+    if (due_date     !== undefined) { sets.push(`due_date = $${idx++}`);     params.push(due_date     || null); }
+    if (!sets.length) return res.status(400).json({ error: 'Nothing to update' });
+    params.push(id, vulnId);
+    await pool.query(
+      `UPDATE device_vulnerabilities SET ${sets.join(', ')} WHERE device_id = $${idx} AND vuln_id = $${idx + 1}`,
+      params
+    );
+    res.json({ ok: true });
+  } catch (err) {
+    next(err);
+  }
+}
+
 function getDeviceTypes(req, res) {
   res.json({ products: DEVICE_TYPE_PRODUCTS, options: DEVICE_TYPE_OPTIONS });
 }
@@ -458,5 +478,5 @@ function getDeviceTypes(req, res) {
 module.exports = {
   list, create, update, remove, scan, scanAll, recalcForVendor,
   getDeviceVulns, updateDeviceVulnStatus, addDeviceVulnNote, setDeviceVulnRiskAcceptance,
-  getDeviceTypes,
+  updateDeviceVulnMeta, getDeviceTypes,
 };

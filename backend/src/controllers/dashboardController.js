@@ -78,6 +78,24 @@ async function reviews(req, res, next) {
   }
 }
 
+async function overdue(req, res, next) {
+  try {
+    const { rows } = await pool.query(
+      `SELECT v.id, v.title, v.title_en, v.severity, v.cvss, v.handle_status, v.due_date,
+              u.username AS assignee_username
+       FROM vulnerabilities v
+       LEFT JOIN users u ON u.id = v.assignee_id
+       WHERE v.due_date < CURRENT_DATE
+         AND v.handle_status NOT IN ('fixed', 'accepted')
+       ORDER BY v.due_date ASC
+       LIMIT 20`
+    );
+    res.json(rows);
+  } catch (err) {
+    next(err);
+  }
+}
+
 async function rebuildTrendsHandler(req, res, next) {
   try {
     const { rebuildTrends } = require('../services/nvdSync');
@@ -88,4 +106,4 @@ async function rebuildTrendsHandler(req, res, next) {
   }
 }
 
-module.exports = { stats, trend, reviews, rebuildTrendsHandler };
+module.exports = { stats, trend, reviews, overdue, rebuildTrendsHandler };

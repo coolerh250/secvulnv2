@@ -1,7 +1,7 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { TOKENS, ACCEPT_REASONS, t } from '../styles/tokens';
-import { vulnApi, deviceVulnApi, aiApi } from '../services/api';
+import { vulnApi, deviceVulnApi, aiApi, userApi } from '../services/api';
 import { Badge, CvssBar, VulnStatusBadge, Btn, InputField, SelectField } from './ui';
 import { Icons } from './Icons';
 
@@ -17,6 +17,29 @@ import { Icons } from './Icons';
 export function VulnDetailModal({ vuln, lang, onClose, onUpdate, onDelete, device }) {
   const { can } = useAuth();
   const canModify = can('search', 'modify');
+
+  const [assigneeId,   setAssigneeId]   = useState(vuln.assignee_id   ?? null);
+  const [dueDate,      setDueDate]      = useState(vuln.due_date       ?? '');
+  const [users,        setUsers]        = useState([]);
+  const [metaSaving,   setMetaSaving]   = useState(false);
+
+  useEffect(() => {
+    if (!canModify) return;
+    userApi.list().then(r => setUsers(r.data)).catch(() => {});
+  }, [canModify]);
+
+  const handleMeta = async (field, value) => {
+    setMetaSaving(true);
+    try {
+      if (device) await deviceVulnApi.updateMeta(device.id, vuln.id, { [field]: value || null });
+      else        await vulnApi.updateMeta(vuln.id, { [field]: value || null });
+      if (field === 'assignee_id') setAssigneeId(value || null);
+      if (field === 'due_date')    setDueDate(value || '');
+      onUpdate(vuln.id, { [field]: value || null });
+    } finally {
+      setMetaSaving(false);
+    }
+  };
 
   const [showAcceptModal,   setShowAcceptModal]   = useState(false);
   const [showNoteInput,     setShowNoteInput]     = useState(false);
@@ -233,6 +256,31 @@ export function VulnDetailModal({ vuln, lang, onClose, onUpdate, onDelete, devic
                   <div style={{ color: TOKENS.text }}>{lang === 'zh' ? vuln.riskAcceptance.mitigation : (vuln.riskAcceptance.mitigation_en || vuln.riskAcceptance.mitigation)}</div>
                 </div>
               </div>
+            </div>
+          )}
+
+          {/* Assignment & Due Date */}
+          {canModify && (
+            <div style={{ padding: 16, background: TOKENS.bg, borderRadius: TOKENS.radius, border: `1px solid ${TOKENS.border}` }}>
+              <div style={{ fontSize: 12, color: TOKENS.textMuted, textTransform: 'uppercase', letterSpacing: '0.05em', fontWeight: 600, marginBottom: 12 }}>
+                {lang === 'zh' ? '指派與期限' : 'Assignment & Due Date'}
+              </div>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                <div>
+                  <label style={{ fontSize: 11, color: TOKENS.textSecondary, display: 'block', marginBottom: 4 }}>{lang === 'zh' ? '指派給' : 'Assignee'}</label>
+                  <select value={assigneeId || ''} onChange={e => handleMeta('assignee_id', e.target.value || null)}
+                    style={{ width: '100%', padding: '7px 10px', background: TOKENS.bgInput, border: `1px solid ${TOKENS.border}`, borderRadius: TOKENS.radiusSm, color: TOKENS.text, fontSize: 13, fontFamily: TOKENS.font, outline: 'none', cursor: 'pointer' }}>
+                    <option value="">{lang === 'zh' ? '未指派' : 'Unassigned'}</option>
+                    {users.map(u => <option key={u.id} value={u.id}>{u.username}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label style={{ fontSize: 11, color: TOKENS.textSecondary, display: 'block', marginBottom: 4 }}>{lang === 'zh' ? '修補期限' : 'Due Date'}</label>
+                  <input type="date" value={dueDate} onChange={e => handleMeta('due_date', e.target.value || null)}
+                    style={{ width: '100%', padding: '7px 10px', background: TOKENS.bgInput, border: `1px solid ${dueDate && new Date(dueDate) < new Date() ? TOKENS.danger : TOKENS.border}`, borderRadius: TOKENS.radiusSm, color: dueDate && new Date(dueDate) < new Date() ? TOKENS.danger : TOKENS.text, fontSize: 13, fontFamily: TOKENS.font, outline: 'none' }} />
+                </div>
+              </div>
+              {metaSaving && <div style={{ marginTop: 6, fontSize: 11, color: TOKENS.textMuted }}>{lang === 'zh' ? '儲存中...' : 'Saving...'}</div>}
             </div>
           )}
 

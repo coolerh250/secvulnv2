@@ -21,6 +21,7 @@ export function DashboardPage({ onNavigate }) {
   const [stats,    setStats]    = useState(null);
   const [trend,    setTrend]    = useState([]);
   const [reviews,  setReviews]  = useState([]);
+  const [overdue,  setOverdue]  = useState([]);
   const [topVulns, setTopVulns] = useState([]);
   const [expanded, setExpanded] = useState(null);
   const [expandVulns, setExpandVulns] = useState([]);
@@ -44,14 +45,16 @@ export function DashboardPage({ onNavigate }) {
       dashboardApi.stats(),
       dashboardApi.trend(),
       dashboardApi.reviews(),
+      dashboardApi.overdue(),
       vulnApi.list({ date_from: `${new Date().getFullYear()}-01-01`, date_to: `${new Date().getFullYear()}-12-31` }),
-    ]).then(([s, tr, rv, vl]) => {
+    ]).then(([s, tr, rv, ov, vl]) => {
       setStats(s.data);
       setTrend(tr.data);
       setReviews(rv.data.map(v => ({
         ...v,
         daysLeft: Math.ceil((new Date(v.review_date) - new Date()) / 86400000),
       })));
+      setOverdue(ov.data);
       setTopVulns([...vl.data.data].sort((a, b) => b.cvss - a.cvss).slice(0, 5));
     }).finally(() => { setLoading(false); setRefreshing(false); });
   };
@@ -216,6 +219,28 @@ export function DashboardPage({ onNavigate }) {
           ))}
         </div>
       </Card>
+
+      {/* Overdue Vulnerabilities */}
+      {overdue.length > 0 && (
+        <Card style={{ borderColor: `${TOKENS.danger}50`, background: `${TOKENS.danger}06` }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
+            <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke={TOKENS.danger} strokeWidth="1.8"><path d="M10 2L2 17h16L10 2z"/><path d="M10 8v4M10 14h.01"/></svg>
+            <span style={{ fontSize: 14, fontWeight: 600, color: TOKENS.danger }}>
+              {lang === 'zh' ? `逾期未修復弱點 (${overdue.length})` : `Overdue Vulnerabilities (${overdue.length})`}
+            </span>
+          </div>
+          {overdue.map((v, i) => (
+            <div key={v.id} onClick={() => setDetailVuln(v)} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '9px 0', borderBottom: i < overdue.length - 1 ? `1px solid ${TOKENS.border}` : 'none', cursor: 'pointer' }}
+              onMouseEnter={e => e.currentTarget.style.opacity = '0.8'} onMouseLeave={e => e.currentTarget.style.opacity = '1'}>
+              <Badge severity={v.severity} />
+              <span style={{ fontFamily: TOKENS.mono, fontSize: 12, fontWeight: 700, color: TOKENS.primary, flexShrink: 0 }}>{v.id}</span>
+              <span style={{ flex: 1, fontSize: 12, color: TOKENS.text, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{lang === 'zh' ? v.title : v.title_en}</span>
+              {v.assignee_username && <span style={{ fontSize: 11, color: TOKENS.textMuted, flexShrink: 0 }}>{v.assignee_username}</span>}
+              <span style={{ fontSize: 12, fontFamily: TOKENS.mono, color: TOKENS.danger, fontWeight: 600, flexShrink: 0 }}>{v.due_date}</span>
+            </div>
+          ))}
+        </Card>
+      )}
 
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 16 }}>
         {/* Upcoming Reviews */}

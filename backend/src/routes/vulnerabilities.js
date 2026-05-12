@@ -7,8 +7,9 @@ router.use(authMiddleware);
 router.get('/',                       ctrl.list);
 router.get('/:id',                    ctrl.getOne);
 router.put('/:id/status',             requireRole('superadmin', 'admin'), ctrl.updateStatus);
+router.put('/:id/meta',               requireRole('superadmin', 'admin'), ctrl.updateMeta);
 router.post('/:id/notes',             requireRole('superadmin', 'admin'), ctrl.addNote);
-router.post('/:id/risk-acceptance',   requireRole('superadmin'), ctrl.setRiskAcceptance);
+router.post('/:id/risk-acceptance',   requireRole('superadmin', 'admin'), ctrl.setRiskAcceptance);
 router.delete('/:id',                 requireRole('superadmin', 'admin'), ctrl.remove);
 
 module.exports = router;
