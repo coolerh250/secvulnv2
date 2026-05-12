@@ -63,7 +63,7 @@ export function DashboardPage({ onNavigate }) {
     if (filter.severity)     params.severity      = filter.severity;
     if (filter.handleStatus) params.handle_status = filter.handleStatus;
     const res = await vulnApi.list(params);
-    setExpandVulns(res.data);
+    setExpandVulns(res.data.data);
   };
 
   const handleCardClick = (id, filter) => {
