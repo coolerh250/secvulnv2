@@ -243,7 +243,7 @@ export function DevicesPage({ onNavigate }) {
             <Fragment key={d.id}>
               {/* Device row */}
               <div style={{ display: 'grid', gridTemplateColumns: COLS, padding: '12px 16px', borderBottom: isExpanded ? 'none' : `1px solid ${TOKENS.border}`, alignItems: 'center', background: isExpanded ? `${accentColor}06` : 'transparent' }}>
-                <span style={{ fontSize: 13, fontWeight: 500, color: TOKENS.text }}>{lang === 'zh' ? d.name : (d.name_en || d.name)}</span>
+                <span onClick={() => handleExpandVulns(d)} style={{ fontSize: 13, fontWeight: 500, color: TOKENS.text, cursor: 'pointer' }}>{lang === 'zh' ? d.name : (d.name_en || d.name)}</span>
                 <span style={{ fontSize: 12, color: TOKENS.textSecondary }}>{d.vendor}</span>
                 <span style={{ fontSize: 12, color: TOKENS.textSecondary }}>{d.device_type || '—'}</span>
                 <span style={{ fontSize: 12, color: TOKENS.text, fontFamily: TOKENS.mono }}>{d.model}</span>
