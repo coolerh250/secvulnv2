@@ -311,7 +311,10 @@ export function DevicesPage({ onNavigate }) {
                             style={{ display: 'grid', gridTemplateColumns: '130px 1fr 90px 80px 90px', gap: 10, padding: '9px 16px', borderBottom: i < arr.length - 1 ? `1px solid ${TOKENS.border}` : 'none', cursor: 'pointer', alignItems: 'center' }}
                             onMouseEnter={e => e.currentTarget.style.background = 'rgba(255,255,255,0.04)'}
                             onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
-                            <span style={{ fontFamily: TOKENS.mono, fontSize: 12, fontWeight: 700, color: TOKENS.primary }}>{v.id}</span>
+                            <span style={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+                              <span style={{ fontFamily: TOKENS.mono, fontSize: 12, fontWeight: 700, color: TOKENS.primary }}>{v.id}</span>
+                              {v.is_kev && <span style={{ fontSize: 10, fontWeight: 700, color: TOKENS.danger, background: TOKENS.dangerDim, padding: '1px 5px', borderRadius: 3, letterSpacing: '0.04em', alignSelf: 'flex-start' }}>KEV</span>}
+                            </span>
                             <span style={{ fontSize: 12, color: TOKENS.text, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{lang === 'zh' ? v.title : v.title_en}</span>
                             <Badge severity={v.severity} />
                             <CvssBar score={Number(v.cvss)} />

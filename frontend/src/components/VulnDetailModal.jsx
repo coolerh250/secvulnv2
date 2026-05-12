@@ -100,6 +100,9 @@ export function VulnDetailModal({ vuln, lang, onClose, onUpdate, onDelete, devic
             <span style={{ fontFamily: TOKENS.mono, fontSize: 16, fontWeight: 700, color: TOKENS.primary }}>{vuln.id}</span>
             <Badge severity={vuln.severity} />
             <VulnStatusBadge status={vuln.handle_status} />
+            {vuln.is_kev && (
+              <span style={{ padding: '2px 8px', borderRadius: 4, fontSize: 11, fontWeight: 700, background: TOKENS.dangerDim, color: TOKENS.danger, letterSpacing: '0.05em', border: `1px solid ${TOKENS.danger}40` }}>KEV</span>
+            )}
           </div>
           <button onClick={onClose} style={{ background: 'none', border: 'none', color: TOKENS.textMuted, cursor: 'pointer' }}>{Icons.close}</button>
         </div>
@@ -122,6 +125,9 @@ export function VulnDetailModal({ vuln, lang, onClose, onUpdate, onDelete, devic
                   <div style={{ width: `${vuln.cvss * 10}%`, height: '100%', background: vuln.cvss >= 9 ? TOKENS.danger : vuln.cvss >= 7 ? TOKENS.warning : TOKENS.medium, borderRadius: 4 }} />
                 </div>
               </div>
+              {vuln.cvss_vector && (
+                <div style={{ marginTop: 6, fontSize: 11, color: TOKENS.textMuted, fontFamily: TOKENS.mono, wordBreak: 'break-all' }}>{vuln.cvss_vector}</div>
+              )}
             </div>
             <div style={{ padding: 14, background: TOKENS.bg, borderRadius: TOKENS.radius, border: `1px solid ${TOKENS.border}` }}>
               <div style={{ fontSize: 11, color: TOKENS.textMuted, marginBottom: 6, textTransform: 'uppercase' }}>{t(lang, 'source')}</div>

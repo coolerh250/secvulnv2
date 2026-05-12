@@ -58,14 +58,14 @@ function parseCvss(metrics) {
     const arr = metrics?.[key];
     if (!arr?.length) continue;
     const m = arr.find(x => x.type === 'Primary') || arr[0];
-    return { score: m.cvssData.baseScore, severity: m.cvssData.baseSeverity };
+    return { score: m.cvssData.baseScore, severity: m.cvssData.baseSeverity, vector: m.cvssData.vectorString || null };
   }
   const v2 = metrics?.cvssMetricV2?.[0];
   if (v2) {
     const s = v2.cvssData.baseScore;
-    return { score: s, severity: s >= 7 ? 'HIGH' : s >= 4 ? 'MEDIUM' : 'LOW' };
+    return { score: s, severity: s >= 7 ? 'HIGH' : s >= 4 ? 'MEDIUM' : 'LOW', vector: v2.cvssData.vectorString || null };
   }
-  return { score: 0.0, severity: 'MEDIUM' };
+  return { score: 0.0, severity: 'MEDIUM', vector: null };
 }
 
 function collectMatches(nodes, out = []) {
@@ -137,7 +137,7 @@ async function upsertCve(cve, vendor) {
   const descEn = (cve.descriptions || []).find(d => d.lang === 'en')?.value || '';
   if (!descEn || !id) return 'skipped';
 
-  const { score, severity } = parseCvss(cve.metrics);
+  const { score, severity, vector } = parseCvss(cve.metrics);
   const published = (cve.published || cve.lastModified || '').slice(0, 10);
   if (!published) return 'skipped';
   if (published < getCutoffDate()) return 'skipped';
@@ -151,8 +151,8 @@ async function upsertCve(cve, vendor) {
     `INSERT INTO vulnerabilities
        (id, vendor, product, firmware_versions, affected_products, cvss, severity, published,
         title, title_en, description, description_en,
-        source, recommendation, recommendation_en, refs, handle_status, updated_at)
-     VALUES ($1,$2,$3,$4::jsonb,$5::jsonb,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16::jsonb,'pending',NOW())
+        source, recommendation, recommendation_en, refs, cvss_vector, handle_status, updated_at)
+     VALUES ($1,$2,$3,$4::jsonb,$5::jsonb,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16::jsonb,$17,'pending',NOW())
      ON CONFLICT (id) DO UPDATE SET
        vendor            = EXCLUDED.vendor,
        product           = EXCLUDED.product,
@@ -173,12 +173,13 @@ async function upsertCve(cve, vendor) {
                              WHEN vulnerabilities.source IS NULL OR vulnerabilities.source = '' OR vulnerabilities.source = 'NVD'
                                THEN 'NVD'
                              WHEN vulnerabilities.source LIKE 'NVD%'
-                               THEN vulnerabilities.source   -- already labelled with NVD, keep extra sources
-                             ELSE 'NVD + ' || vulnerabilities.source  -- RSS-inserted record now also confirmed by NVD
+                               THEN vulnerabilities.source
+                             ELSE 'NVD + ' || vulnerabilities.source
                            END,
        recommendation    = EXCLUDED.recommendation,
        recommendation_en = EXCLUDED.recommendation_en,
        refs              = EXCLUDED.refs,
+       cvss_vector       = EXCLUDED.cvss_vector,
        updated_at        = NOW()
      RETURNING (xmax::text::bigint = 0) AS was_inserted`,
     [
@@ -191,6 +192,7 @@ async function upsertCve(cve, vendor) {
       buildRecommendation(severity, vendor, true),
       buildRecommendation(severity, vendor, false),
       refs,
+      vector,
     ]
   );
 
@@ -398,12 +400,43 @@ async function syncPanRss(sinceDate) {
 // Public entry point called by settingsController
 // ---------------------------------------------------------------------------
 
-// Sources supported for automatic sync (NVD keyword-based + RSS-based)
-const SYNC_SOURCES = new Set(['nvd', 'fortinet', 'paloalto']);
+// ---------------------------------------------------------------------------
+// CISA KEV (Known Exploited Vulnerabilities) sync
+// ---------------------------------------------------------------------------
+
+async function syncKev() {
+  const text = await fetchText('https://www.cisa.gov/sites/default/files/feeds/known_exploited_vulnerabilities.json');
+  const { vulnerabilities: kevList = [] } = JSON.parse(text);
+
+  await pool.query('UPDATE vulnerabilities SET is_kev = false, kev_due_date = null WHERE is_kev = true');
+
+  if (!kevList.length) return { inserted: 0, updated: 0, removed: 0 };
+
+  const ids      = kevList.map(v => v.cveID).filter(Boolean);
+  const dueDates = kevList.filter(v => v.cveID).map(v => v.dueDate || null);
+
+  const { rowCount } = await pool.query(
+    `UPDATE vulnerabilities v
+     SET is_kev = true, kev_due_date = u.due_date::date
+     FROM unnest($1::varchar[], $2::text[]) AS u(cve_id, due_date)
+     WHERE v.id = u.cve_id`,
+    [ids, dueDates]
+  );
+
+  return { inserted: 0, updated: rowCount || 0, removed: 0 };
+}
+
+// Sources supported for automatic sync (NVD keyword-based + RSS-based + CISA KEV)
+const SYNC_SOURCES = new Set(['nvd', 'fortinet', 'paloalto', 'cisa_kev']);
 
 async function sync(sourceId, settings) {
   const src       = (settings.data_sources || []).find(s => s.id === sourceId);
   const sinceDate = src?.lastSync || null;
+
+  if (sourceId === 'cisa_kev') {
+    const result = await syncKev();
+    return { ...result, removed: 0 };
+  }
 
   // Palo Alto Networks: RSS sync against official security advisory feed
   if (sourceId === 'paloalto') {

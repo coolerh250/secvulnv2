@@ -247,7 +247,10 @@ export function SearchPage({ preset, onPresetConsumed }) {
             style={{ display: 'grid', gridTemplateColumns: '130px 1fr 100px 90px 80px 90px 90px', padding: '12px 16px', borderBottom: `1px solid ${TOKENS.border}`, cursor: 'pointer', alignItems: 'center' }}
             onMouseEnter={e => e.currentTarget.style.background = 'rgba(255,255,255,0.03)'}
             onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
-            <span style={{ fontFamily: TOKENS.mono, fontSize: 13, fontWeight: 600, color: TOKENS.primary }}>{v.id}</span>
+            <span style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+              <span style={{ fontFamily: TOKENS.mono, fontSize: 13, fontWeight: 600, color: TOKENS.primary }}>{v.id}</span>
+              {v.is_kev && <span style={{ fontSize: 10, fontWeight: 700, color: TOKENS.danger, background: TOKENS.dangerDim, padding: '1px 5px', borderRadius: 3, letterSpacing: '0.04em', alignSelf: 'flex-start' }}>KEV</span>}
+            </span>
             <span style={{ fontSize: 13, color: TOKENS.text, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{lang === 'zh' ? v.title : v.title_en}</span>
             <span style={{ fontSize: 12, color: TOKENS.textSecondary }}>{v.vendor}</span>
             <Badge severity={v.severity} />
