@@ -79,11 +79,11 @@ export const ROLES = {
     label: '一般管理者', labelEn: 'Admin', color: TOKENS.warning, bg: TOKENS.warningDim, icon: '▲',
     permissions: {
       dashboard:  { view: true },
-      search:     { view: true, modify: false },
+      search:     { view: true, modify: true },
       devices:    { view: true, modify: true },
       users:      { view: true, modify: true, assignRole: ['admin','user'] },
       settings:   { view: false, modify: false },
-      riskAccept: { view: true, modify: false },
+      riskAccept: { view: true, modify: true },
       aiAnalysis: { view: true },
       auditLogs:  { view: true },
     },
