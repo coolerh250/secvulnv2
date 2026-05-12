@@ -4,59 +4,44 @@ async function list(req, res) {
   try {
     const { keyword, category, username, dateFrom, dateTo, page = 1, limit = 50 } = req.query;
 
-    const offset = (parseInt(page) - 1) * parseInt(limit);
-    const params = [];
+    const limitVal  = parseInt(limit);
+    const offsetVal = (parseInt(page) - 1) * limitVal;
+    const params    = [];
     const conditions = [];
+    let idx = 1;
 
-    if (dateFrom) {
-      params.push(dateFrom);
-      conditions.push(`created_at >= $${params.length}`);
-    }
-    if (dateTo) {
-      params.push(dateTo);
-      conditions.push(`created_at <= $${params.length}::timestamptz + interval '1 day'`);
-    }
-    if (category) {
-      params.push(category);
-      conditions.push(`category = $${params.length}`);
-    }
-    if (username) {
-      params.push(`%${username}%`);
-      conditions.push(`username ILIKE $${params.length}`);
-    }
+    if (dateFrom) { params.push(dateFrom);         conditions.push(`created_at >= $${idx++}`); }
+    if (dateTo)   { params.push(dateTo);            conditions.push(`created_at <= $${idx++}::timestamptz + interval '1 day'`); }
+    if (category) { params.push(category);          conditions.push(`category = $${idx++}`); }
+    if (username) { params.push(`%${username}%`);   conditions.push(`username ILIKE $${idx++}`); }
     if (keyword) {
       params.push(`%${keyword}%`);
-      const p = params.length;
       conditions.push(
-        `(username ILIKE $${p} OR action ILIKE $${p} OR target_name ILIKE $${p} OR detail::text ILIKE $${p})`
+        `(username ILIKE $${idx} OR action ILIKE $${idx} OR target_name ILIKE $${idx} OR detail::text ILIKE $${idx})`
       );
+      idx++;
     }
 
     const where = conditions.length ? `WHERE ${conditions.join(' AND ')}` : '';
+    params.push(limitVal, offsetVal);
 
-    const countResult = await pool.query(
-      `SELECT COUNT(*) FROM audit_logs ${where}`,
-      params
-    );
-    const total = parseInt(countResult.rows[0].count);
-
-    params.push(parseInt(limit));
-    params.push(offset);
-    const dataResult = await pool.query(
-      `SELECT id, created_at, user_id, username, role, action, category, target_id, target_name, detail
+    const { rows } = await pool.query(
+      `SELECT id, created_at, user_id, username, role, action, category, target_id, target_name, detail,
+              COUNT(*) OVER() AS total_count
        FROM audit_logs
        ${where}
        ORDER BY created_at DESC
-       LIMIT $${params.length - 1} OFFSET $${params.length}`,
+       LIMIT $${idx} OFFSET $${idx + 1}`,
       params
     );
 
+    const total = rows.length > 0 ? parseInt(rows[0].total_count) : 0;
     res.json({
-      data: dataResult.rows,
+      data: rows.map(({ total_count, ...row }) => row),
       total,
       page: parseInt(page),
-      limit: parseInt(limit),
-      pages: Math.ceil(total / parseInt(limit)),
+      limit: limitVal,
+      pages: Math.ceil(total / limitVal) || 1,
     });
   } catch (err) {
     console.error('Audit list error:', err);

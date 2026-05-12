@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback, useEffect, useRef } from 'react';
 import { TOKENS } from '../styles/tokens';
 import { useLang } from '../contexts/LangContext';
 import { auditApi } from '../services/api';
@@ -25,8 +25,23 @@ const inputStyle = {
   outline: 'none',
 };
 
+function makeInitFilters() {
+  const d = new Date();
+  d.setDate(d.getDate() - 30);
+  return { keyword: '', category: '', username: '', dateFrom: d.toISOString().slice(0, 10), dateTo: '' };
+}
+
+function FilterField({ label, children }) {
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+      <label style={{ fontSize: 11, color: TOKENS.textSecondary }}>{label}</label>
+      {children}
+    </div>
+  );
+}
+
 function CategoryBadge({ category }) {
-  const style = CATEGORY_BADGE[category] || { color: TOKENS.textSecondary, bg: 'rgba(120,128,160,0.12)' };
+  const style = CATEGORY_BADGE[category] || CATEGORY_BADGE.user;
   return (
     <span style={{
       padding: '2px 8px', borderRadius: 4, fontSize: 11, fontWeight: 600,
@@ -81,19 +96,13 @@ function pageBtnStyle(disabled, active = false) {
   };
 }
 
-function defaultFrom() {
-  const d = new Date();
-  d.setDate(d.getDate() - 30);
-  return d.toISOString().slice(0, 10);
-}
-
 export function LogsPage() {
   const { lang } = useLang();
   const isZh = lang === 'zh';
 
-  const initFilters = { keyword: '', category: '', username: '', dateFrom: defaultFrom(), dateTo: '' };
-  const [filters, setFilters] = useState(initFilters);
-  const [pending, setPending] = useState(initFilters);
+  const initFilters = useRef(makeInitFilters());
+  const [filters, setFilters] = useState(initFilters.current);
+  const [pending, setPending] = useState(initFilters.current);
   const [data, setData] = useState([]);
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(1);
@@ -123,20 +132,16 @@ export function LogsPage() {
     }
   }, []);
 
-  useEffect(() => { fetchLogs(initFilters, 1); }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { fetchLogs(initFilters.current, 1); }, [fetchLogs]);
 
   const handleSearch = () => {
     setFilters({ ...pending });
     fetchLogs(pending, 1);
   };
 
-  const handlePage = (p) => {
-    fetchLogs(filters, p);
-  };
+  const handlePage = (p) => { fetchLogs(filters, p); };
 
-  const handleKeyDown = (e) => {
-    if (e.key === 'Enter') handleSearch();
-  };
+  const handleKeyDown = (e) => { if (e.key === 'Enter') handleSearch(); };
 
   return (
     <div style={{ padding: 24, maxWidth: 1300, margin: '0 auto' }}>
@@ -149,11 +154,9 @@ export function LogsPage() {
         </p>
       </div>
 
-      {/* Filter bar */}
       <div style={{ background: TOKENS.bgCard, border: `1px solid ${TOKENS.border}`, borderRadius: TOKENS.radius, padding: 16, marginBottom: 20 }}>
         <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'flex-end' }}>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-            <label style={{ fontSize: 11, color: TOKENS.textSecondary }}>{isZh ? '關鍵字' : 'Keyword'}</label>
+          <FilterField label={isZh ? '關鍵字' : 'Keyword'}>
             <input
               style={{ ...inputStyle, width: 200 }}
               placeholder={isZh ? '搜尋動作、使用者、對象…' : 'Search action, user, target…'}
@@ -161,9 +164,8 @@ export function LogsPage() {
               onChange={e => setPending(p => ({ ...p, keyword: e.target.value }))}
               onKeyDown={handleKeyDown}
             />
-          </div>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-            <label style={{ fontSize: 11, color: TOKENS.textSecondary }}>{isZh ? '分類' : 'Category'}</label>
+          </FilterField>
+          <FilterField label={isZh ? '分類' : 'Category'}>
             <select
               style={{ ...inputStyle, width: 140, cursor: 'pointer' }}
               value={pending.category}
@@ -172,9 +174,8 @@ export function LogsPage() {
               <option value="">{isZh ? '全部' : 'All'}</option>
               {CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
             </select>
-          </div>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-            <label style={{ fontSize: 11, color: TOKENS.textSecondary }}>{isZh ? '使用者' : 'Username'}</label>
+          </FilterField>
+          <FilterField label={isZh ? '使用者' : 'Username'}>
             <input
               style={{ ...inputStyle, width: 140 }}
               placeholder={isZh ? '使用者名稱' : 'Username'}
@@ -182,17 +183,15 @@ export function LogsPage() {
               onChange={e => setPending(p => ({ ...p, username: e.target.value }))}
               onKeyDown={handleKeyDown}
             />
-          </div>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-            <label style={{ fontSize: 11, color: TOKENS.textSecondary }}>{isZh ? '開始日期' : 'From'}</label>
+          </FilterField>
+          <FilterField label={isZh ? '開始日期' : 'From'}>
             <input type="date" style={{ ...inputStyle, width: 140 }} value={pending.dateFrom}
               onChange={e => setPending(p => ({ ...p, dateFrom: e.target.value }))} />
-          </div>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-            <label style={{ fontSize: 11, color: TOKENS.textSecondary }}>{isZh ? '結束日期' : 'To'}</label>
+          </FilterField>
+          <FilterField label={isZh ? '結束日期' : 'To'}>
             <input type="date" style={{ ...inputStyle, width: 140 }} value={pending.dateTo}
               onChange={e => setPending(p => ({ ...p, dateTo: e.target.value }))} />
-          </div>
+          </FilterField>
           <button
             onClick={handleSearch}
             disabled={loading}
@@ -203,10 +202,9 @@ export function LogsPage() {
         </div>
       </div>
 
-      {/* Results */}
       {searched && (
         <div style={{ background: TOKENS.bgCard, border: `1px solid ${TOKENS.border}`, borderRadius: TOKENS.radius, overflow: 'hidden' }}>
-          <div style={{ padding: '12px 16px', borderBottom: `1px solid ${TOKENS.border}`, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <div style={{ padding: '12px 16px', borderBottom: `1px solid ${TOKENS.border}` }}>
             <span style={{ fontSize: 13, color: TOKENS.textSecondary }}>
               {isZh ? `共 ${total} 筆紀錄` : `${total} records found`}
             </span>

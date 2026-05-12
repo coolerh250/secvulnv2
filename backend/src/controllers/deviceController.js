@@ -177,10 +177,9 @@ async function update(req, res, next) {
 async function remove(req, res, next) {
   try {
     const { id } = req.params;
-    const { rows: [dev] } = await pool.query('SELECT name FROM devices WHERE id = $1', [id]);
-    const { rowCount } = await pool.query('DELETE FROM devices WHERE id = $1', [id]);
-    if (!rowCount) return res.status(404).json({ error: 'Device not found' });
-    auditService.log(req.user, 'device.delete', 'device', id, dev?.name || id, {});
+    const { rows: [dev] } = await pool.query('DELETE FROM devices WHERE id = $1 RETURNING name', [id]);
+    if (!dev) return res.status(404).json({ error: 'Device not found' });
+    auditService.log(req.user, 'device.delete', 'device', id, dev.name, {});
     res.status(204).end();
   } catch (err) {
     next(err);

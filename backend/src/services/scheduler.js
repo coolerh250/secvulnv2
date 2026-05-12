@@ -13,6 +13,7 @@ const FREQ_MS = {
 };
 
 let _timer = null;
+let _cleanupTimer = null;
 let _running = false;
 
 async function runDueSources() {
@@ -132,15 +133,16 @@ async function cleanupAuditLogs() {
 
 function start() {
   if (_timer) clearInterval(_timer);
-  // Check every 5 minutes whether any source is due for sync
-  _timer = setInterval(() => { runDueSources(); runDueReports(); cleanupAuditLogs(); }, 5 * 60 * 1000);
-  // Initial check after 15 s so the DB connection is ready
+  if (_cleanupTimer) clearInterval(_cleanupTimer);
+  _timer = setInterval(() => { runDueSources(); runDueReports(); }, 5 * 60 * 1000);
+  _cleanupTimer = setInterval(cleanupAuditLogs, 24 * 60 * 60 * 1000);
   setTimeout(runDueSources, 15_000);
   console.log('[scheduler] Auto-sync scheduler started (checks every 5 min)');
 }
 
 function stop() {
   if (_timer) { clearInterval(_timer); _timer = null; }
+  if (_cleanupTimer) { clearInterval(_cleanupTimer); _cleanupTimer = null; }
 }
 
 module.exports = { start, stop };
