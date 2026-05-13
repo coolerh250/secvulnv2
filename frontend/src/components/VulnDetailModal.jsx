@@ -132,6 +132,15 @@ export function VulnDetailModal({ vuln, lang, onClose, onUpdate, onDelete, devic
 
         <div style={{ padding: 24, display: 'flex', flexDirection: 'column', gap: 20 }}>
 
+          {/* NVD analysis-in-progress notice */}
+          {vuln.vuln_status && vuln.vuln_status !== 'Analyzed' && (
+            <div style={{ padding: '6px 10px', borderRadius: 4, background: TOKENS.warningDim, color: TOKENS.warning, fontSize: 12 }}>
+              {lang === 'zh'
+                ? `NVD 尚在分析中（${vuln.vuln_status}），受影響版本等資料可能尚未完整。`
+                : `NVD analysis pending (${vuln.vuln_status}). Affected version data may be incomplete.`}
+            </div>
+          )}
+
           {/* Title & Description */}
           <div>
             <div style={{ fontSize: 18, fontWeight: 600, color: TOKENS.text, marginBottom: 8 }}>{lang === 'zh' ? vuln.title : vuln.title_en}</div>

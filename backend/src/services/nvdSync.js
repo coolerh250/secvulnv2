@@ -111,6 +111,39 @@ function parseConfigurations(configurations, vendorPrefix) {
   };
 }
 
+// Layer 2 fallback: fetch version ranges from vendor advisory URL in refs
+async function fetchAdvisoryVersions(refUrls) {
+  const fortiUrl = refUrls.find(u => /fortiguard.*psirt/i.test(u));
+  if (!fortiUrl) return [];
+  try {
+    const html = await fetchText(fortiUrl);
+    const versions = [];
+    const rangeRe = /(\d+\.\d+[\d.]*)\s*(?:through|to|-|–)\s*(\d+\.\d+[\d.]*)/g;
+    let m;
+    while ((m = rangeRe.exec(html)) !== null) {
+      versions.push(`${m[1]} – ${m[2]}`);
+    }
+    return [...new Set(versions)].slice(0, 12);
+  } catch {
+    return [];
+  }
+}
+
+// Layer 3 fallback: extract version ranges from description text
+function parseVersionsFromDescription(descEn) {
+  const versions = [];
+  const rangeRe = /(\d+\.\d+[\d.]*)\s*[-–]\s*(\d+\.\d+[\d.]*)/g;
+  let m;
+  while ((m = rangeRe.exec(descEn)) !== null) {
+    versions.push(`${m[1]} – ${m[2]}`);
+  }
+  const beforeRe = /(?:before|prior to|through)\s+(\d+\.\d+[\d.]*)/gi;
+  while ((m = beforeRe.exec(descEn)) !== null) {
+    versions.push(`< ${m[1]}`);
+  }
+  return [...new Set(versions)].slice(0, 12);
+}
+
 function buildTitle(desc) {
   const first = (desc.split('. ')[0] || desc).trim();
   return first.length > 120 ? first.slice(0, 117) + '...' : first;
@@ -143,16 +176,28 @@ async function upsertCve(cve, vendor) {
   if (published < getCutoffDate()) return 'skipped';
 
   const vendorPrefix = vendor.toLowerCase().split(' ')[0]; // 'fortinet' | 'palo'
-  const { product, firmwareVersions, affectedProducts } = parseConfigurations(cve.configurations, vendorPrefix);
+  let { product, firmwareVersions, affectedProducts } = parseConfigurations(cve.configurations, vendorPrefix);
+  const refUrls = (cve.references || []).map(r => r.url).filter(Boolean);
+
+  // Layer 2: fetch versions from vendor advisory URL in refs
+  if (!firmwareVersions.length) {
+    firmwareVersions = await fetchAdvisoryVersions(refUrls);
+  }
+  // Layer 3: extract versions from description text
+  if (!firmwareVersions.length) {
+    firmwareVersions = parseVersionsFromDescription(descEn);
+  }
+
+  const vulnStatus = cve.vulnStatus || null;
   const titleEn = buildTitle(descEn);
-  const refs    = JSON.stringify((cve.references || []).map(r => r.url).slice(0, 15));
+  const refs    = JSON.stringify(refUrls.slice(0, 15));
 
   const { rows } = await pool.query(
     `INSERT INTO vulnerabilities
        (id, vendor, product, firmware_versions, affected_products, cvss, severity, published,
         title, title_en, description, description_en,
-        source, recommendation, recommendation_en, refs, cvss_vector, handle_status, updated_at)
-     VALUES ($1,$2,$3,$4::jsonb,$5::jsonb,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16::jsonb,$17,'pending',NOW())
+        source, recommendation, recommendation_en, refs, cvss_vector, vuln_status, handle_status, updated_at)
+     VALUES ($1,$2,$3,$4::jsonb,$5::jsonb,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16::jsonb,$17,$18,'pending',NOW())
      ON CONFLICT (id) DO UPDATE SET
        vendor            = EXCLUDED.vendor,
        product           = EXCLUDED.product,
@@ -180,6 +225,7 @@ async function upsertCve(cve, vendor) {
        recommendation_en = EXCLUDED.recommendation_en,
        refs              = EXCLUDED.refs,
        cvss_vector       = EXCLUDED.cvss_vector,
+       vuln_status       = EXCLUDED.vuln_status,
        updated_at        = NOW()
      RETURNING (xmax::text::bigint = 0) AS was_inserted`,
     [
@@ -193,6 +239,7 @@ async function upsertCve(cve, vendor) {
       buildRecommendation(severity, vendor, false),
       refs,
       vector,
+      vulnStatus,
     ]
   );
 
