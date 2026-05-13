@@ -3,6 +3,12 @@ import { TOKENS, SEVERITY_MAP, VULN_STATUS } from '../styles/tokens';
 import { useLang } from '../contexts/LangContext';
 import { deviceApi, reportApi } from '../services/api';
 
+const formatTs = ts => {
+  if (!ts) return '';
+  const d = new Date(ts);
+  return isNaN(d) ? String(ts).slice(0, 16) : d.toLocaleString('zh-TW', { hour12: false }).slice(0, 16);
+};
+
 const FORMATS = [
   { id: 1, label: '設備修補狀態', labelEn: 'Device Patch Status' },
   { id: 2, label: '管理層總覽',   labelEn: 'Executive Summary' },
@@ -545,7 +551,7 @@ export function ReportPage() {
                       </label>
                       <button style={{ ...btnStyle(TOKENS.danger), padding: '6px 10px' }} onClick={() => removeSchedule(s.id)}>✕</button>
                     </div>
-                    {s.lastRun && <div style={{ fontSize: 10, color: TOKENS.textMuted, marginTop: 6 }}>{isZh ? '上次執行' : 'Last run'}: {String(s.lastRun).slice(0, 16)}</div>}
+                    {s.lastRun && <div style={{ fontSize: 10, color: TOKENS.textMuted, marginTop: 6 }}>{isZh ? '上次執行' : 'Last run'}: {formatTs(s.lastRun)}</div>}
                   </div>
                 ))
               }

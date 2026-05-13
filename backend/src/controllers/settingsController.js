@@ -188,7 +188,7 @@ async function syncSource(req, res, next) {
 
     const result = await sync(sourceId, settings);
 
-    const now = new Date().toISOString().slice(0, 16).replace('T', ' ');
+    const now = new Date().toISOString();
     const updated = sources.map((s, i) =>
       i === srcIndex ? { ...s, lastSync: now, syncStatus: 'ok' } : s
     );

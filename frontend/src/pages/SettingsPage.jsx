@@ -6,6 +6,13 @@ import { useAuth } from '../contexts/AuthContext';
 import { Card, Btn, InputField, SelectField } from '../components/ui';
 import { Icons } from '../components/Icons';
 
+function formatSync(ts) {
+  if (!ts || ts === '—') return '—';
+  const d = new Date(ts);
+  if (isNaN(d)) return ts;
+  return d.toLocaleString('zh-TW', { hour12: false }).slice(0, 16);
+}
+
 export function SettingsPage({ onNavigate }) {
   const { lang } = useLang();
   const { can } = useAuth();
@@ -101,8 +108,7 @@ export function SettingsPage({ onNavigate }) {
     setSyncResult(prev => ({ ...prev, [src.id]: null }));
     try {
       const res = await settingsApi.syncSource(src.id);
-      const now = new Date().toISOString().slice(0, 16).replace('T', ' ');
-      updateSource(src.id, { lastSync: now, syncStatus: 'ok' });
+      updateSource(src.id, { lastSync: new Date().toISOString(), syncStatus: 'ok' });
       setSyncResult(prev => ({ ...prev, [src.id]: { inserted: res.data.inserted, updated: res.data.updated, removed: res.data.removed } }));
     } catch (err) {
       updateSource(src.id, { syncStatus: 'fail' });
@@ -438,7 +444,7 @@ export function SettingsPage({ onNavigate }) {
                   </div>
                   <div style={{ textAlign: 'right', flexShrink: 0 }}>
                     <div style={{ fontSize: 11, color: TOKENS.textMuted }}>{lang === 'zh' ? '最後同步' : 'Last sync'}</div>
-                    <div style={{ fontSize: 11, fontFamily: TOKENS.mono, color: TOKENS.text }}>{src.lastSync}</div>
+                    <div style={{ fontSize: 11, fontFamily: TOKENS.mono, color: TOKENS.text }}>{formatSync(src.lastSync)}</div>
                   </div>
                   <span style={{ fontSize: 11, padding: '3px 8px', borderRadius: 8, background: TOKENS.border, color: TOKENS.textSecondary, flexShrink: 0 }}>
                     {syncFreqOptions.find(o => o.value === src.syncFreq)?.label || src.syncFreq}

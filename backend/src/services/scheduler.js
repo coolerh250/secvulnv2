@@ -57,7 +57,7 @@ async function runDueSources() {
       console.log(`[scheduler] Running scheduled sync for "${src.id}" (freq: ${src.syncFreq})`);
       try {
         const result = await sync(src.id, settings);
-        const nowStr = new Date().toISOString().slice(0, 16).replace('T', ' ');
+        const nowStr = new Date().toISOString();
         // Refresh settings from DB in case another process updated them
         const { rows: fresh } = await pool.query(
           `SELECT data_sources,
