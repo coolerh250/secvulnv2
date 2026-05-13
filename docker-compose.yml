@@ -4,19 +4,51 @@ services:
   db:
     image: postgres:16-alpine
     container_name: secvuln_db
+    restart: unless-stopped
     environment:
-      POSTGRES_DB: secvuln
-      POSTGRES_USER: secvuln
-      POSTGRES_PASSWORD: secvuln_pass
-    ports:
-      - '5432:5432'
+      POSTGRES_DB:       ${DB_NAME:-secvulndb}
+      POSTGRES_USER:     ${DB_USER:-secvulnv2}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-changeme}
     volumes:
       - pgdata:/var/lib/postgresql/data
     healthcheck:
-      test: ['CMD-SHELL', 'pg_isready -U secvuln']
+      test: ['CMD-SHELL', 'pg_isready -U ${DB_USER:-secvulnv2} -d ${DB_NAME:-secvulndb}']
       interval: 5s
       timeout: 5s
-      retries: 10
+      retries: 12
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: secvuln_backend
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      PORT:           3001
+      DB_HOST:        db
+      DB_PORT:        5432
+      DB_NAME:        ${DB_NAME:-secvulndb}
+      DB_USER:        ${DB_USER:-secvulnv2}
+      DB_PASSWORD:    ${DB_PASSWORD:-changeme}
+      JWT_SECRET:     ${JWT_SECRET:-change-this-secret}
+      JWT_EXPIRES_IN: 8h
+      CORS_ORIGIN:    ${CORS_ORIGIN:-https://localhost:8443}
+    expose:
+      - "3001"
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: secvuln_frontend
+    restart: unless-stopped
+    depends_on:
+      - backend
+    ports:
+      - "${FRONTEND_PORT:-8443}:443"
 
 volumes:
   pgdata:
