@@ -7,10 +7,10 @@
 
 INSERT INTO users (username, password_hash, display_name, display_name_en, email, role, active, last_login, created_at)
 VALUES
-  ('superadmin', '$2b$10$rOzJqxMqL8K5v2nPw9C4/.k7z6VcPGNkB.P.Nk5DXlRoW4YK6mNFi', '系統管理員', 'System Admin', 'superadmin@secvuln.local', 'superadmin', true,  '2026-05-04 09:12:00', '2026-01-01'),
-  ('alice',      '$2b$10$7kNxFzY1vPqW8L2oT5C4/.LxY6WmOIPUoZ.K.Nk5DXlRoW4YK6mABi', '王小明',     'Alice Wang',  'alice@secvuln.local',      'admin',      true,  '2026-05-03 14:30:00', '2026-02-15'),
-  ('bob',        '$2b$10$3mBxGzQ2wRsV9M4pU6D5/.MxZ7XnPJRWpA.L.Ok6EYmSoX5ZL7nBCj', '李大華',     'Bob Lee',     'bob@secvuln.local',        'user',       true,  '2026-05-02 10:05:00', '2026-03-01'),
-  ('carol',      '$2b$10$9pCxHzR3xStW0N5qV7E6/.NyA8YoQKSXqB.M.Pl7FZnToY6AM8oCDk', '陳美玲',     'Carol Chen',  'carol@secvuln.local',      'user',       false, '2026-04-28 16:45:00', '2026-03-10')
+  ('superadmin', '$2a$10$0dSB3RS58HHalRIso/zDeOSLGDIaMOY5k57L47w7dEMgkZHJH0hwW', '系統管理員', 'System Admin', 'superadmin@secvuln.local', 'superadmin', true,  '2026-05-04 09:12:00', '2026-01-01'),
+  ('alice',      '$2a$10$tHIATxvOOayefjvBMB5JduZcVU2NTACa1LkHVWP17Hm6ehulMhpai', '王小明',     'Alice Wang',  'alice@secvuln.local',      'admin',      true,  '2026-05-03 14:30:00', '2026-02-15'),
+  ('bob',        '$2a$10$J37C9df62wil8FJd1G1RtefJa/Fjp0YD4SYcVqJV/JwbAuRKDAlSm', '李大華',     'Bob Lee',     'bob@secvuln.local',        'user',       true,  '2026-05-02 10:05:00', '2026-03-01'),
+  ('carol',      '$2a$10$YWTM4.6vr74W1o7f.b9bI.tZlYeGTrvXZwPYUgJ5LPV/cAkoW/U12', '陳美玲',     'Carol Chen',  'carol@secvuln.local',      'user',       false, '2026-04-28 16:45:00', '2026-03-10')
 ON CONFLICT (username) DO NOTHING;
 
 INSERT INTO vulnerabilities (id, vendor, product, firmware_versions, cvss, severity, published, title, title_en, description, description_en, source, recommendation, recommendation_en, refs, handle_status)
