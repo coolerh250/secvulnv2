@@ -57,6 +57,8 @@ git clone https://<YOUR_TOKEN>@github.com/coolerh250/secvulnv2.git
 cd secvulnv2
 ```
 
+> **安全注意：** PAT 會明文存入 bash history。clone 完成後請執行 `history -c` 清除，或改用方式 B（SCP）避免 token 出現在指令列。
+
 ### 方式 B：從已有程式碼的機器以 SCP 傳送（推薦用於內網部署）
 
 在**本機**執行（將程式碼打包後傳至伺服器）：
