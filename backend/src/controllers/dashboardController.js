@@ -2,11 +2,17 @@ const pool = require('../db');
 
 async function stats(req, res, next) {
   try {
-    const [{ rows: vulnRows }, { rows: deviceRows }, { rows: vendorRows }, { rows: recentRows }] = await Promise.all([
+    const [{ rows: vulnRows }, { rows: deviceRows }, { rows: vendorRows }, { rows: recentRows }, { rows: slaRows }] = await Promise.all([
       pool.query(`SELECT severity, handle_status FROM vulnerabilities`),
       pool.query(`SELECT status FROM devices`),
       pool.query(`SELECT vendor, COUNT(*)::int AS cnt FROM vulnerabilities GROUP BY vendor`),
       pool.query(`SELECT severity, COUNT(*)::int AS cnt FROM vulnerabilities WHERE published >= CURRENT_DATE - INTERVAL '30 days' GROUP BY severity`),
+      pool.query(`SELECT
+        COUNT(*)::int                                                                       AS total_with_sla,
+        COUNT(*) FILTER (WHERE handle_status IN ('fixed','accepted'))::int                 AS remediated,
+        COUNT(*) FILTER (WHERE handle_status IN ('fixed','accepted')
+                           AND updated_at::date <= due_date)::int                          AS on_time
+      FROM vulnerabilities WHERE due_date IS NOT NULL`),
     ]);
 
     const severity = { CRITICAL: 0, HIGH: 0, MEDIUM: 0, LOW: 0 };
@@ -26,6 +32,11 @@ async function stats(req, res, next) {
     recentRows.forEach(r => { if (recent30BySeverity[r.severity] !== undefined) recent30BySeverity[r.severity] = r.cnt; });
     const recent30Total = Object.values(recent30BySeverity).reduce((a, b) => a + b, 0);
 
+    const sla = slaRows[0] || { total_with_sla: 0, remediated: 0, on_time: 0 };
+    const slaComplianceRate = sla.remediated > 0
+      ? Math.round((sla.on_time / sla.remediated) * 100)
+      : null;
+
     res.json({
       total:         vulnRows.length,
       severity,
@@ -34,6 +45,12 @@ async function stats(req, res, next) {
       deviceStatus,
       vendorCounts,
       recent30: { total: recent30Total, bySeverity: recent30BySeverity },
+      sla: {
+        totalWithDeadline: sla.total_with_sla,
+        remediated:        sla.remediated,
+        onTime:            sla.on_time,
+        complianceRate:    slaComplianceRate,
+      },
     });
   } catch (err) {
     next(err);

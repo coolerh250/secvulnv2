@@ -1,6 +1,7 @@
 const pool         = require('../db');
 const { sync, SYNC_SOURCES } = require('./nvdSync');
 const { notify, sendReportEmail } = require('./notificationService');
+const { syncEpss } = require('./epssSync');
 const auditService = require('./auditService');
 
 const FREQ_MS = {
@@ -15,6 +16,24 @@ const FREQ_MS = {
 let _timer = null;
 let _cleanupTimer = null;
 let _running = false;
+let _epssLastRun = 0;
+
+async function applySlaDueDates() {
+  try {
+    const { rows } = await pool.query('SELECT sla_policy FROM settings WHERE id = 1');
+    const policy = rows[0]?.sla_policy || { CRITICAL: 7, HIGH: 30, MEDIUM: 90, LOW: 180 };
+    for (const [severity, days] of Object.entries(policy)) {
+      await pool.query(
+        `UPDATE vulnerabilities
+         SET due_date = published + ($1 || ' days')::interval
+         WHERE severity = $2 AND due_date IS NULL AND published IS NOT NULL`,
+        [String(days), severity]
+      );
+    }
+  } catch (err) {
+    console.error('[scheduler] applySlaDueDates error:', err.message);
+  }
+}
 
 async function runDueSources() {
   if (_running) return; // prevent overlapping runs
@@ -55,7 +74,12 @@ async function runDueSources() {
         console.log(`[scheduler] "${src.id}" done — ${result.inserted} new, ${result.updated} updated, ${result.removed} removed`);
         if (result.inserted > 0) {
           await notify(fresh[0], src.id);
+          // Auto-match new CVEs against all devices
+          const { runScanAll } = require('../controllers/deviceController');
+          runScanAll().catch(err => console.error('[scheduler] auto-scan error:', err.message));
         }
+        // Fill SLA due_date for vulns that don't have one yet
+        await applySlaDueDates();
       } catch (err) {
         console.error(`[scheduler] Sync failed for "${src.id}":`, err.message);
         try {
@@ -131,10 +155,16 @@ async function cleanupAuditLogs() {
   }
 }
 
+function runEpssIfDue() {
+  if (Date.now() - _epssLastRun < 23 * 3600_000) return;
+  _epssLastRun = Date.now();
+  syncEpss().catch(err => console.error('[scheduler] EPSS sync error:', err.message));
+}
+
 function start() {
   if (_timer) clearInterval(_timer);
   if (_cleanupTimer) clearInterval(_cleanupTimer);
-  _timer = setInterval(() => { runDueSources(); runDueReports(); }, 5 * 60 * 1000);
+  _timer = setInterval(() => { runDueSources(); runDueReports(); runEpssIfDue(); }, 5 * 60 * 1000);
   _cleanupTimer = setInterval(cleanupAuditLogs, 24 * 60 * 60 * 1000);
   setTimeout(runDueSources, 15_000);
   console.log('[scheduler] Auto-sync scheduler started (checks every 5 min)');

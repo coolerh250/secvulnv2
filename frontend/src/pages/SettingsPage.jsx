@@ -42,6 +42,7 @@ export function SettingsPage({ onNavigate }) {
   const [showAddSrc,   setShowAddSrc]   = useState(false);
   const [newSrc,       setNewSrc]       = useState({ name: '', desc: '', url: '', apiKey: '', syncFreq: '24h' });
   const [logRetentionDays, setLogRetentionDays] = useState(90);
+  const [slaPolicy, setSlaPolicy] = useState({ CRITICAL: 7, HIGH: 30, MEDIUM: 90, LOW: 180 });
 
   useEffect(() => {
     settingsApi.get().then(res => {
@@ -65,6 +66,7 @@ export function SettingsPage({ onNavigate }) {
       if (d.notif_webhook_token) setWebhookToken(d.notif_webhook_token);
       if (d.data_sources)       setSources(d.data_sources);
       if (d.log_retention_days) setLogRetentionDays(d.log_retention_days);
+      if (d.sla_policy)         setSlaPolicy(d.sla_policy);
     }).finally(() => setLoading(false));
   }, []);
 
@@ -144,6 +146,7 @@ export function SettingsPage({ onNavigate }) {
       notif_webhook_token: webhookToken || null,
       data_sources: sources,
       log_retention_days: logRetentionDays,
+      sla_policy: slaPolicy,
     });
     setSaved(true); setTimeout(() => setSaved(false), 2000);
   };
@@ -346,6 +349,40 @@ export function SettingsPage({ onNavigate }) {
             { value: 'MEDIUM',   label: lang === 'zh' ? '中以上 (Medium+)'  : 'Medium and above' },
             { value: 'LOW',      label: lang === 'zh' ? '全部 (All)'        : 'All severities' },
           ]} />
+        </div>
+      </Card>
+
+      {/* SLA Policy */}
+      <Card>
+        <div style={{ fontSize: 15, fontWeight: 600, color: TOKENS.text, marginBottom: 16, display: 'flex', alignItems: 'center', gap: 8 }}>
+          <svg width="18" height="18" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.5"><circle cx="10" cy="10" r="8"/><polyline points="10 6 10 10 13 13"/></svg>
+          <span>{lang === 'zh' ? 'SLA 修補期限政策' : 'SLA Remediation Policy'}</span>
+        </div>
+        <div style={{ fontSize: 12, color: TOKENS.textMuted, marginBottom: 16 }}>
+          {lang === 'zh'
+            ? '系統會依此政策自動為新漏洞設定修補期限（due_date）。已手動設定期限的漏洞不受影響。'
+            : 'The system will auto-set due dates for new vulnerabilities based on this policy. Manually set due dates are not overwritten.'}
+        </div>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: 12 }}>
+          {[
+            { key: 'CRITICAL', label: lang === 'zh' ? '嚴重 (Critical)' : 'Critical',  color: TOKENS.danger },
+            { key: 'HIGH',     label: lang === 'zh' ? '高危 (High)'     : 'High',      color: TOKENS.warning },
+            { key: 'MEDIUM',   label: lang === 'zh' ? '中危 (Medium)'   : 'Medium',    color: TOKENS.medium },
+            { key: 'LOW',      label: lang === 'zh' ? '低危 (Low)'      : 'Low',       color: TOKENS.low },
+          ].map(({ key, label, color }) => (
+            <div key={key} style={{ padding: 12, background: TOKENS.bg, borderRadius: TOKENS.radius, border: `1px solid ${TOKENS.border}` }}>
+              <div style={{ fontSize: 11, fontWeight: 700, color, marginBottom: 8, textTransform: 'uppercase' }}>{label}</div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                <input
+                  type="number" min="1" max="365"
+                  value={slaPolicy[key] ?? ''}
+                  onChange={e => setSlaPolicy(prev => ({ ...prev, [key]: parseInt(e.target.value) || prev[key] }))}
+                  style={{ width: '60px', padding: '6px 8px', background: TOKENS.bgInput, border: `1px solid ${TOKENS.border}`, borderRadius: TOKENS.radiusSm, color: TOKENS.text, fontSize: 14, fontFamily: TOKENS.mono, textAlign: 'right', outline: 'none' }}
+                />
+                <span style={{ fontSize: 12, color: TOKENS.textMuted }}>{lang === 'zh' ? '天' : 'days'}</span>
+              </div>
+            </div>
+          ))}
         </div>
       </Card>
 

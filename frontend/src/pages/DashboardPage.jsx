@@ -220,6 +220,36 @@ export function DashboardPage({ onNavigate }) {
         </div>
       </Card>
 
+      {/* SLA Compliance */}
+      {stats?.sla?.totalWithDeadline > 0 && (
+        <Card>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.5"><circle cx="10" cy="10" r="8"/><polyline points="10 6 10 10 13 13"/></svg>
+              <span style={{ fontSize: 14, fontWeight: 600, color: TOKENS.text }}>
+                {lang === 'zh' ? 'SLA 達標率' : 'SLA Compliance Rate'}
+              </span>
+            </div>
+            {stats.sla.complianceRate !== null && (
+              <span style={{ fontSize: 22, fontWeight: 700, fontFamily: TOKENS.mono, color: stats.sla.complianceRate >= 80 ? TOKENS.low : stats.sla.complianceRate >= 60 ? TOKENS.warning : TOKENS.danger }}>
+                {stats.sla.complianceRate}%
+              </span>
+            )}
+          </div>
+          <div style={{ height: 8, background: TOKENS.border, borderRadius: 4, overflow: 'hidden', marginBottom: 8 }}>
+            {stats.sla.complianceRate !== null && (
+              <div style={{ width: `${stats.sla.complianceRate}%`, height: '100%', background: stats.sla.complianceRate >= 80 ? TOKENS.low : stats.sla.complianceRate >= 60 ? TOKENS.warning : TOKENS.danger, borderRadius: 4, transition: 'width 0.5s' }} />
+            )}
+          </div>
+          <div style={{ display: 'flex', gap: 20, fontSize: 12, color: TOKENS.textMuted }}>
+            <span>{lang === 'zh' ? `有 SLA 期限：${stats.sla.totalWithDeadline} 筆` : `With deadline: ${stats.sla.totalWithDeadline}`}</span>
+            <span>{lang === 'zh' ? `已修復/接受：${stats.sla.remediated} 筆` : `Remediated: ${stats.sla.remediated}`}</span>
+            <span>{lang === 'zh' ? `準時達標：${stats.sla.onTime} 筆` : `On time: ${stats.sla.onTime}`}</span>
+            {stats.sla.complianceRate === null && <span style={{ color: TOKENS.textMuted }}>{lang === 'zh' ? '（尚無修復記錄）' : '(no remediated items yet)'}</span>}
+          </div>
+        </Card>
+      )}
+
       {/* Overdue Vulnerabilities */}
       {overdue.length > 0 && (
         <Card style={{ borderColor: `${TOKENS.danger}50`, background: `${TOKENS.danger}06` }}>

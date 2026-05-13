@@ -39,7 +39,7 @@ async function update(req, res, next) {
       notif_email, notif_web, notif_threshold, notif_email_addr,
       notif_smtp_host, notif_smtp_port, notif_smtp_user, notif_smtp_pass, notif_smtp_from,
       notif_webhook_url, notif_webhook_type, notif_webhook_token,
-      interface_language, data_sources, log_retention_days,
+      interface_language, data_sources, log_retention_days, sla_policy,
     } = req.body;
 
     // If the client echoes back a masked placeholder, don't overwrite the stored value
@@ -88,6 +88,7 @@ async function update(req, res, next) {
         interface_language   = COALESCE($18, interface_language),
         data_sources         = COALESCE($19, data_sources),
         log_retention_days   = COALESCE($20, log_retention_days),
+        sla_policy           = COALESCE($21, sla_policy),
         updated_at           = NOW()
        WHERE id = 1 RETURNING *`,
       [
@@ -99,6 +100,7 @@ async function update(req, res, next) {
         interface_language,
         mergedSources ? JSON.stringify(mergedSources) : null,
         log_retention_days || null,
+        sla_policy ? JSON.stringify(sla_policy) : null,
       ]
     );
     const SENSITIVE = ['ai_api_key', 'notif_smtp_pass', 'notif_webhook_token'];

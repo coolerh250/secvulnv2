@@ -168,6 +168,47 @@ export function VulnDetailModal({ vuln, lang, onClose, onUpdate, onDelete, devic
             </div>
           </div>
 
+          {/* EPSS + SLA */}
+          {(vuln.epss_score !== null && vuln.epss_score !== undefined) && (
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
+              <div style={{ padding: 14, background: TOKENS.bg, borderRadius: TOKENS.radius, border: `1px solid ${TOKENS.border}` }}>
+                <div style={{ fontSize: 11, color: TOKENS.textMuted, marginBottom: 6, textTransform: 'uppercase' }}>EPSS</div>
+                <div style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
+                  <span style={{ fontSize: 28, fontWeight: 700, fontFamily: TOKENS.mono, color: vuln.epss_score >= 0.5 ? TOKENS.danger : vuln.epss_score >= 0.1 ? TOKENS.warning : TOKENS.low }}>
+                    {(vuln.epss_score * 100).toFixed(1)}%
+                  </span>
+                  <span style={{ fontSize: 12, color: TOKENS.textMuted }}>
+                    {lang === 'zh' ? '利用概率' : 'exploit probability'}
+                  </span>
+                </div>
+                {vuln.epss_percentile !== null && vuln.epss_percentile !== undefined && (
+                  <div style={{ marginTop: 4, fontSize: 11, color: TOKENS.textMuted }}>
+                    {lang === 'zh' ? `百分位：${(vuln.epss_percentile * 100).toFixed(1)}%` : `Percentile: ${(vuln.epss_percentile * 100).toFixed(1)}%`}
+                  </div>
+                )}
+              </div>
+              <div style={{ padding: 14, background: TOKENS.bg, borderRadius: TOKENS.radius, border: `1px solid ${TOKENS.border}` }}>
+                <div style={{ fontSize: 11, color: TOKENS.textMuted, marginBottom: 6, textTransform: 'uppercase' }}>
+                  {lang === 'zh' ? 'SLA 期限' : 'SLA Deadline'}
+                </div>
+                {vuln.due_date ? (
+                  <div>
+                    <span style={{ fontSize: 16, fontWeight: 600, fontFamily: TOKENS.mono, color: new Date(vuln.due_date) < new Date() ? TOKENS.danger : TOKENS.text }}>
+                      {vuln.due_date}
+                    </span>
+                    {new Date(vuln.due_date) < new Date() && !['fixed','accepted'].includes(vuln.handle_status) && (
+                      <span style={{ marginLeft: 8, fontSize: 11, fontWeight: 700, color: TOKENS.danger }}>
+                        {lang === 'zh' ? '已逾期' : 'Overdue'}
+                      </span>
+                    )}
+                  </div>
+                ) : (
+                  <span style={{ fontSize: 14, color: TOKENS.textMuted }}>—</span>
+                )}
+              </div>
+            </div>
+          )}
+
           {/* Affected versions */}
           <div style={{ padding: 14, background: TOKENS.bg, borderRadius: TOKENS.radius, border: `1px solid ${TOKENS.border}` }}>
             <div style={{ fontSize: 11, color: TOKENS.textMuted, marginBottom: 6, textTransform: 'uppercase' }}>{t(lang, 'affected')}</div>

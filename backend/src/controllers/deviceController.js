@@ -223,43 +223,48 @@ async function scan(req, res, next) {
   }
 }
 
+async function runScanAll() {
+  const [{ rows: devices }, { rows: allVulns }] = await Promise.all([
+    pool.query('SELECT * FROM devices'),
+    pool.query(
+      `SELECT id, vendor, firmware_versions, affected_products, product
+       FROM vulnerabilities WHERE handle_status != 'fixed'`
+    ),
+  ]);
+  if (devices.length === 0) return { updated: 0, devices: [] };
+
+  const vulnsByVendor = {};
+  for (const v of allVulns) {
+    (vulnsByVendor[v.vendor] = vulnsByVendor[v.vendor] || []).push(v);
+  }
+
+  const updated = await Promise.all(devices.map(async device => {
+    const vendorVulns = vulnsByVendor[device.vendor] || [];
+    const matchedVulns = vendorVulns.filter(r =>
+      isProductMatch(device.device_type, r.affected_products, r.product) &&
+      affectsDevice(device.firmware, r.firmware_versions)
+    );
+    const matchedIds = matchedVulns.map(r => r.id);
+
+    const vuln_count = await syncDeviceVulns(device.id, matchedIds);
+    const status = computeStatus(vuln_count, matchedVulns);
+    const { rows } = await pool.query(
+      `UPDATE devices SET status=$1, vuln_count=$2, last_check=CURRENT_DATE, updated_at=NOW()
+       WHERE id=$3 RETURNING *`,
+      [status, vuln_count, device.id]
+    );
+    return rows[0];
+  }));
+
+  return { updated: updated.length, devices: updated };
+}
+
 async function scanAll(req, res, next) {
   try {
-    const [{ rows: devices }, { rows: allVulns }] = await Promise.all([
-      pool.query('SELECT * FROM devices'),
-      pool.query(
-        `SELECT id, vendor, firmware_versions, affected_products, product
-         FROM vulnerabilities WHERE handle_status != 'fixed'`
-      ),
-    ]);
-    if (devices.length === 0) return res.json({ updated: 0, devices: [] });
-
-    const vulnsByVendor = {};
-    for (const v of allVulns) {
-      (vulnsByVendor[v.vendor] = vulnsByVendor[v.vendor] || []).push(v);
-    }
-
-    const updated = await Promise.all(devices.map(async device => {
-      const vendorVulns = vulnsByVendor[device.vendor] || [];
-      const matchedVulns = vendorVulns.filter(r =>
-        isProductMatch(device.device_type, r.affected_products, r.product) &&
-        affectsDevice(device.firmware, r.firmware_versions)
-      );
-      const matchedIds = matchedVulns.map(r => r.id);
-
-      const vuln_count = await syncDeviceVulns(device.id, matchedIds);
-      const status = computeStatus(vuln_count, matchedVulns);
-      const { rows } = await pool.query(
-        `UPDATE devices SET status=$1, vuln_count=$2, last_check=CURRENT_DATE, updated_at=NOW()
-         WHERE id=$3 RETURNING *`,
-        [status, vuln_count, device.id]
-      );
-      return rows[0];
-    }));
-
+    const result = await runScanAll();
     auditService.log(req.user, 'device.scan_all', 'device', null, null,
-      { device_count: updated.length });
-    res.json({ updated: updated.length, devices: updated });
+      { device_count: result.updated });
+    res.json(result);
   } catch (err) {
     next(err);
   }
@@ -476,7 +481,7 @@ function getDeviceTypes(req, res) {
 }
 
 module.exports = {
-  list, create, update, remove, scan, scanAll, recalcForVendor,
+  list, create, update, remove, scan, scanAll, runScanAll, recalcForVendor,
   getDeviceVulns, updateDeviceVulnStatus, addDeviceVulnNote, setDeviceVulnRiskAcceptance,
   updateDeviceVulnMeta, getDeviceTypes,
 };

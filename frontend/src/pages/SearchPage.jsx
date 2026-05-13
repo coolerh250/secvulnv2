@@ -159,6 +159,18 @@ export function SearchPage({ preset, onPresetConsumed }) {
     </button>
   );
 
+  const epssColor = score => {
+    if (score === null || score === undefined) return TOKENS.textMuted;
+    if (score >= 0.5) return TOKENS.danger;
+    if (score >= 0.1) return TOKENS.warning;
+    return TOKENS.low;
+  };
+  const EpssCell = ({ score }) => (
+    score !== null && score !== undefined
+      ? <span style={{ fontSize: 12, fontFamily: TOKENS.mono, color: epssColor(score), fontWeight: 600 }}>{(score * 100).toFixed(1)}%</span>
+      : <span style={{ fontSize: 12, color: TOKENS.textMuted }}>—</span>
+  );
+
   const pageStart = total === 0 ? 0 : (page - 1) * limit + 1;
   const pageEnd   = Math.min(page * limit, total);
 
@@ -227,12 +239,13 @@ export function SearchPage({ preset, onPresetConsumed }) {
 
       {/* Results Table */}
       <Card style={{ padding: 0, overflow: 'hidden' }}>
-        <div style={{ display: 'grid', gridTemplateColumns: '130px 1fr 100px 90px 80px 90px 90px', padding: '10px 16px', borderBottom: `1px solid ${TOKENS.border}`, background: 'rgba(255,255,255,0.02)' }}>
+        <div style={{ display: 'grid', gridTemplateColumns: '130px 1fr 100px 90px 80px 80px 90px 90px', padding: '10px 16px', borderBottom: `1px solid ${TOKENS.border}`, background: 'rgba(255,255,255,0.02)' }}>
           <span style={{ fontSize: 12, fontWeight: 600, color: TOKENS.textSecondary }}>{t(lang, 'cveId')}</span>
           <span style={{ fontSize: 12, fontWeight: 600, color: TOKENS.textSecondary }}>{t(lang, 'description')}</span>
           <span style={{ fontSize: 12, fontWeight: 600, color: TOKENS.textSecondary }}>{t(lang, 'vendor')}</span>
           <span style={{ fontSize: 12, fontWeight: 600, color: TOKENS.textSecondary }}>{t(lang, 'severity')}</span>
           <SortBtn field="cvss"      label={t(lang, 'cvss')} />
+          <span style={{ fontSize: 12, fontWeight: 600, color: TOKENS.textSecondary }}>EPSS</span>
           <span style={{ fontSize: 12, fontWeight: 600, color: TOKENS.textSecondary }}>{lang === 'zh' ? '處理狀態' : 'Status'}</span>
           <SortBtn field="published" label={t(lang, 'published')} />
         </div>
@@ -244,7 +257,7 @@ export function SearchPage({ preset, onPresetConsumed }) {
           <div style={{ padding: 40, textAlign: 'center', color: TOKENS.textMuted }}>{t(lang, 'noResults')}</div>
         ) : results.map(v => (
           <div key={v.id} onClick={() => setSelected(v)}
-            style={{ display: 'grid', gridTemplateColumns: '130px 1fr 100px 90px 80px 90px 90px', padding: '12px 16px', borderBottom: `1px solid ${TOKENS.border}`, cursor: 'pointer', alignItems: 'center' }}
+            style={{ display: 'grid', gridTemplateColumns: '130px 1fr 100px 90px 80px 80px 90px 90px', padding: '12px 16px', borderBottom: `1px solid ${TOKENS.border}`, cursor: 'pointer', alignItems: 'center' }}
             onMouseEnter={e => e.currentTarget.style.background = 'rgba(255,255,255,0.03)'}
             onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
             <span style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
@@ -255,6 +268,7 @@ export function SearchPage({ preset, onPresetConsumed }) {
             <span style={{ fontSize: 12, color: TOKENS.textSecondary }}>{v.vendor}</span>
             <Badge severity={v.severity} />
             <CvssBar score={Number(v.cvss)} />
+            <EpssCell score={v.epss_score} />
             <VulnStatusBadge status={v.handle_status} />
             <span style={{ fontSize: 12, color: TOKENS.textMuted, fontFamily: TOKENS.mono }}>{v.published}</span>
           </div>
