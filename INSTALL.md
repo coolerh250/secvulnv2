@@ -31,6 +31,8 @@ sudo usermod -aG docker $USER
 newgrp docker
 ```
 
+> **注意：** `newgrp docker` 僅對目前的 Shell 會話生效。若關閉終端後重新登入，群組設定才會完整套用。在套用前，所有 `docker` 指令請加上 `sudo`。
+
 確認安裝成功：
 
 ```bash
@@ -43,12 +45,36 @@ docker version
 
 ## 步驟二：取得程式碼
 
+本系統為私有倉庫，依實際情況選擇以下任一方式取得程式碼：
+
+### 方式 A：使用 GitHub Personal Access Token（PAT）
+
+1. 至 GitHub → Settings → Developer settings → Personal access tokens，產生一組具有 `repo` 讀取權限的 Token。
+2. 執行：
+
 ```bash
-git clone https://github.com/your-org/secvulnv2.git
+git clone https://<YOUR_TOKEN>@github.com/coolerh250/secvulnv2.git
 cd secvulnv2
 ```
 
-> 請將 `https://github.com/your-org/secvulnv2.git` 替換為實際的 Git 倉庫網址。
+### 方式 B：從已有程式碼的機器以 SCP 傳送（推薦用於內網部署）
+
+在**本機**執行（將程式碼打包後傳至伺服器）：
+
+```bash
+# 在本機的專案目錄下執行
+tar --exclude='.git' --exclude='node_modules' --exclude='dist' --exclude='.env' \
+    -czf /tmp/secvulnv2.tar.gz .
+scp /tmp/secvulnv2.tar.gz <user>@<server-ip>:/home/<user>/secvulnv2.tar.gz
+```
+
+在**伺服器**執行：
+
+```bash
+mkdir -p ~/secvulnv2
+tar -xzf ~/secvulnv2.tar.gz -C ~/secvulnv2
+cd secvulnv2
+```
 
 ---
 
@@ -100,8 +126,10 @@ CORS_ORIGIN=https://192.168.1.100:8443
 ## 步驟四：建置並啟動服務
 
 ```bash
-docker compose up -d --build
+sudo docker compose up -d --build
 ```
+
+> 若已登出並重新登入（群組設定已生效），可省略 `sudo`。
 
 首次執行約需 **3–5 分鐘**（需下載 Node.js、nginx、PostgreSQL 映像並安裝套件）。
 
@@ -116,7 +144,7 @@ docker compose up -d --build
 ## 步驟五：確認服務狀態
 
 ```bash
-docker compose ps
+sudo docker compose ps
 ```
 
 正常輸出應如下（三個服務狀態皆為 `running`）：
@@ -148,13 +176,11 @@ https://<伺服器 IP>:8443
 
 ## 預設帳號
 
-> 首次登入後，請立即至「使用者管理」修改密碼。
+> 首次登入後，請立即至「使用者管理」修改密碼，並依需求新增其他使用者。
 
 | 帳號 | 密碼 | 角色 |
 |------|------|------|
 | `superadmin` | `admin1234` | 超級管理員（全部權限） |
-| `alice` | `alice1234` | 管理員 |
-| `bob` | `bob12345` | 一般使用者（唯讀） |
 
 ---
 
@@ -163,23 +189,23 @@ https://<伺服器 IP>:8443
 ### 查看服務狀態
 
 ```bash
-docker compose ps
+sudo docker compose ps
 ```
 
 ### 即時查看日誌
 
 ```bash
 # 查看後端日誌
-docker compose logs -f backend
+sudo docker compose logs -f backend
 
 # 查看全部服務日誌
-docker compose logs -f
+sudo docker compose logs -f
 ```
 
 ### 停止服務
 
 ```bash
-docker compose down
+sudo docker compose down
 ```
 
 資料庫資料會保留在 Docker volume，下次啟動不會遺失。
@@ -188,26 +214,26 @@ docker compose down
 
 ```bash
 git pull
-docker compose up -d --build
+sudo docker compose up -d --build
 ```
 
 ### 重啟單一服務
 
 ```bash
-docker compose restart backend
-docker compose restart frontend
+sudo docker compose restart backend
+sudo docker compose restart frontend
 ```
 
 ### 資料庫備份
 
 ```bash
-docker compose exec db pg_dump -U secvulnv2 secvulndb > backup_$(date +%Y%m%d).sql
+sudo docker compose exec db pg_dump -U secvulnv2 secvulndb > backup_$(date +%Y%m%d).sql
 ```
 
 ### 資料庫還原
 
 ```bash
-cat backup_20260513.sql | docker compose exec -T db psql -U secvulnv2 secvulndb
+cat backup_20260513.sql | sudo docker compose exec -T db psql -U secvulnv2 secvulndb
 ```
 
 ---
@@ -217,19 +243,19 @@ cat backup_20260513.sql | docker compose exec -T db psql -U secvulnv2 secvulndb
 ### 查看錯誤訊息
 
 ```bash
-docker compose logs backend
-docker compose logs frontend
-docker compose logs db
+sudo docker compose logs backend
+sudo docker compose logs frontend
+sudo docker compose logs db
 ```
 
 ### 進入容器內部排查
 
 ```bash
 # 後端容器
-docker compose exec backend sh
+sudo docker compose exec backend sh
 
 # 資料庫容器
-docker compose exec db psql -U secvulnv2 secvulndb
+sudo docker compose exec db psql -U secvulnv2 secvulndb
 ```
 
 ### 埠號衝突（8443 已被其他程序使用）
@@ -243,7 +269,7 @@ FRONTEND_PORT=9443
 重新啟動：
 
 ```bash
-docker compose up -d
+sudo docker compose up -d
 ```
 
 ### 後端無法連接資料庫
@@ -252,8 +278,8 @@ docker compose up -d
 然後重新啟動所有服務：
 
 ```bash
-docker compose down
-docker compose up -d --build
+sudo docker compose down
+sudo docker compose up -d --build
 ```
 
 ### 完整重置（清除所有資料重新開始）
@@ -261,8 +287,8 @@ docker compose up -d --build
 > 此操作會刪除所有資料庫資料，無法復原。
 
 ```bash
-docker compose down -v
-docker compose up -d --build
+sudo docker compose down -v
+sudo docker compose up -d --build
 ```
 
 ---
