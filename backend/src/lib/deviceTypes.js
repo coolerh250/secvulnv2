@@ -7,7 +7,7 @@ const DEVICE_TYPE_PRODUCTS = {
   'FortiADC':      ['fortiadc'],
   'FortiMail':     ['fortimail'],
   'FortiWeb':      ['fortiweb'],
-  'PA-Series':     ['pan-os'],
+  'PA-Series':     ['pan-os', 'globalprotect'],
   'Panorama':      ['panorama', 'pan-os'],
 };
 

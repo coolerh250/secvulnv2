@@ -200,15 +200,23 @@ async function upsertCve(cve, vendor) {
      VALUES ($1,$2,$3,$4::jsonb,$5::jsonb,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16::jsonb,$17,$18,'pending',NOW())
      ON CONFLICT (id) DO UPDATE SET
        vendor            = EXCLUDED.vendor,
-       product           = EXCLUDED.product,
+       product           = CASE
+                             WHEN EXCLUDED.product IS DISTINCT FROM EXCLUDED.vendor THEN EXCLUDED.product
+                             ELSE COALESCE(vulnerabilities.product, EXCLUDED.product)
+                           END,
        firmware_versions = CASE WHEN jsonb_array_length(EXCLUDED.firmware_versions) > 0
                                 THEN EXCLUDED.firmware_versions
                                 ELSE vulnerabilities.firmware_versions END,
        affected_products = CASE WHEN jsonb_array_length(EXCLUDED.affected_products) > 0
                                 THEN EXCLUDED.affected_products
                                 ELSE vulnerabilities.affected_products END,
-       cvss              = EXCLUDED.cvss,
-       severity          = EXCLUDED.severity,
+       cvss              = GREATEST(vulnerabilities.cvss, EXCLUDED.cvss),
+       severity          = CASE
+                             WHEN array_position(ARRAY['LOW','MEDIUM','HIGH','CRITICAL'], vulnerabilities.severity)
+                                  > array_position(ARRAY['LOW','MEDIUM','HIGH','CRITICAL'], EXCLUDED.severity)
+                             THEN vulnerabilities.severity
+                             ELSE EXCLUDED.severity
+                           END,
        published         = EXCLUDED.published,
        title             = EXCLUDED.title,
        title_en          = EXCLUDED.title_en,
@@ -345,6 +353,24 @@ async function rebuildTrends() {
 
 const SEVERITY_CVSS_DEFAULT = { CRITICAL: 9.0, HIGH: 7.5, MEDIUM: 5.0, LOW: 2.0 };
 
+// Extracts the affected product from a PAN RSS title description.
+// Titles follow the pattern "Product: description" or just "description".
+function parsePanProduct(desc) {
+  const colonIdx = desc.indexOf(':');
+  if (colonIdx <= 0) return { display: 'PAN-OS', id: 'pan-os' };
+  const raw   = desc.slice(0, colonIdx).trim();
+  const lower = raw.toLowerCase();
+  if (lower === 'pan-os' || lower.startsWith('pan-os'))         return { display: 'PAN-OS',       id: 'pan-os' };
+  if (lower.startsWith('globalprotect'))                        return { display: 'GlobalProtect', id: 'globalprotect' };
+  if (lower === 'panorama')                                     return { display: 'Panorama',      id: 'panorama' };
+  if (lower === 'expedition')                                   return { display: 'Expedition',    id: 'expedition' };
+  if (lower.startsWith('cloud ngfw') || lower === 'cloud-ngfw') return { display: 'Cloud NGFW',   id: 'pan-os' };
+  if (lower.startsWith('prisma access'))                        return { display: 'Prisma Access', id: 'prisma-access' };
+  if (lower.startsWith('prisma'))                               return { display: raw,             id: lower.replace(/ /g, '-') };
+  if (lower.startsWith('cortex'))                               return { display: raw,             id: lower.replace(/ /g, '-') };
+  return { display: raw.charAt(0).toUpperCase() + raw.slice(1), id: lower.replace(/ /g, '-') };
+}
+
 function fetchText(url) {
   return new Promise((resolve, reject) => {
     const req = https.request(url, { timeout: 30000 }, res => {
@@ -396,39 +422,53 @@ async function syncPanRss(sinceDate) {
     const published = item.pubDate ? new Date(item.pubDate).toISOString().slice(0, 10) : null;
     if (!published || published < cutoff) continue;
 
+    const pan  = parsePanProduct(item.title);
+    const cvss = SEVERITY_CVSS_DEFAULT[item.severity] ?? 5.0;
+
     const { rows } = await pool.query(
-      'SELECT id, source FROM vulnerabilities WHERE id = $1', [item.cveId]
+      'SELECT id FROM vulnerabilities WHERE id = $1', [item.cveId]
     );
 
     if (rows.length > 0) {
-      // Existing CVE — always check and append PAN label regardless of sync date
-      // (idempotent: safe to run on every sync cycle)
-      if (!(rows[0].source || '').includes('PAN Security Advisory')) {
-        await pool.query(
-          `UPDATE vulnerabilities
-           SET source = source || ' + PAN Security Advisory', updated_at = NOW()
-           WHERE id = $1`,
-          [item.cveId]
-        );
-        updated++;
-      }
+      // Existing CVE — unconditional idempotent UPDATE: fixes product/affected_products
+      // that may have been overwritten by NVD vendor-fallback, upgrades severity if PAN
+      // rates it higher, and ensures the PAN source label is present.
+      await pool.query(
+        `UPDATE vulnerabilities
+         SET source            = CASE WHEN source NOT LIKE '%PAN Security Advisory%'
+                                      THEN source || ' + PAN Security Advisory'
+                                      ELSE source END,
+             product           = CASE WHEN product IS NULL OR product = 'Palo Alto'
+                                      THEN $2 ELSE product END,
+             affected_products = CASE WHEN jsonb_array_length(affected_products) = 0
+                                      THEN $3::jsonb ELSE affected_products END,
+             cvss              = GREATEST(cvss, $4),
+             severity          = CASE
+               WHEN array_position(ARRAY['LOW','MEDIUM','HIGH','CRITICAL'], severity)
+                    < array_position(ARRAY['LOW','MEDIUM','HIGH','CRITICAL'], $5)
+               THEN $5 ELSE severity END,
+             updated_at        = NOW()
+         WHERE id = $1`,
+        [item.cveId, pan.display, JSON.stringify([pan.id]), cvss, item.severity]
+      );
+      updated++;
     } else {
       // New CVE not yet in NVD — always attempt insert; ON CONFLICT DO NOTHING is
       // the idempotency guard. No date filter here: the RSS feed is small (~25 items)
       // and NVD may lag behind official PAN publications by hours or days, so a
       // date-based filter would silently drop valid new records.
-      const cvss = SEVERITY_CVSS_DEFAULT[item.severity] ?? 5.0;
       await pool.query(
         `INSERT INTO vulnerabilities
            (id, vendor, product, firmware_versions, affected_products, cvss, severity, published,
             title, title_en, description, description_en,
             source, recommendation, recommendation_en, refs, handle_status, updated_at)
-         VALUES ($1,'Palo Alto','PAN-OS','[]'::jsonb,'[]'::jsonb,
-                 $2,$3,$4,$5,$6,$7,$8,
-                 'PAN Security Advisory',$9,$10,$11::jsonb,'pending',NOW())
+         VALUES ($1,'Palo Alto',$2,'[]'::jsonb,$3::jsonb,
+                 $4,$5,$6,$7,$8,$9,$10,
+                 'PAN Security Advisory',$11,$12,$13::jsonb,'pending',NOW())
          ON CONFLICT (id) DO NOTHING`,
         [
-          item.cveId, cvss, item.severity, published,
+          item.cveId, pan.display, JSON.stringify([pan.id]),
+          cvss, item.severity, published,
           item.title, item.title,   // title / title_en
           item.title, item.title,   // description / description_en
           buildRecommendation(item.severity, 'Palo Alto', true),
